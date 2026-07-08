@@ -1,0 +1,2340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IRON PERIMETER — Counter-UAS Command</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --field:#070b09; --panel:#0c1310; --panel2:#101a15; --line:#1e2b23; --line2:#2c4033;
+    --ink:#cfd8ce; --dim:#7d8d80;
+    --phos:#7dffab; --phos-dim:#3f8f5f;
+    --amber:#ffb454; --red:#ff4f4f; --cyan:#5fd8ff;
+    --font-d:'Rajdhani','Arial Narrow',sans-serif;
+    --font-m:'IBM Plex Mono','SF Mono',Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--field); color:var(--ink); font-family:var(--font-m);
+    display:flex; flex-direction:column; height:100vh; overflow:hidden;
+    font-size:13px;
+  }
+  /* faint CRT scanlines over everything */
+  body::after{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:50;
+    background:repeating-linear-gradient(0deg, rgba(0,0,0,0) 0 2px, rgba(0,0,0,.14) 2px 3px);
+    mix-blend-mode:multiply;
+  }
+  button{font-family:var(--font-d); cursor:pointer}
+
+  /* ---------- top status rail ---------- */
+  #top{
+    display:flex; align-items:center; gap:14px; padding:8px 14px;
+    background:var(--panel); border-bottom:1px solid var(--line);
+    flex:0 0 auto; user-select:none;
+  }
+  #brand{font-family:var(--font-d); font-weight:700; font-size:17px; letter-spacing:.14em; color:var(--phos)}
+  #brand small{display:block; font-family:var(--font-m); font-weight:400; font-size:9px; letter-spacing:.28em; color:var(--dim)}
+  .stat{display:flex; flex-direction:column; gap:2px; min-width:74px}
+  .stat .lbl{font-size:9px; letter-spacing:.22em; color:var(--dim)}
+  .stat .val{font-size:15px; font-weight:600}
+  #cashV{color:var(--amber)} #waveV{color:var(--cyan)} #hostV{color:var(--red)}
+  #hpWrap{flex:1 1 auto; max-width:340px}
+  #hpBar{height:12px; background:#08100b; border:1px solid var(--line2); position:relative; overflow:hidden}
+  #hpFill{height:100%; width:100%; background:linear-gradient(90deg,#2e7d4f,var(--phos)); transition:width .2s}
+  #hpBar::after{content:""; position:absolute; inset:0;
+    background:repeating-linear-gradient(90deg, transparent 0 9%, rgba(7,11,9,.9) 9% 10%);}
+  #hpTxt{font-size:10px; color:var(--dim); letter-spacing:.12em; margin-top:2px}
+  #top .grow{flex:1}
+  .btn{
+    background:var(--panel2); color:var(--ink); border:1px solid var(--line2);
+    padding:7px 13px; font-size:13px; font-weight:600; letter-spacing:.1em;
+    text-transform:uppercase;
+  }
+  .btn:hover{border-color:var(--phos-dim); color:var(--phos)}
+  .btn:active{transform:translateY(1px)}
+  .btn.on{border-color:var(--phos); color:var(--phos); background:#10241a; box-shadow:0 0 10px rgba(125,255,171,.2)}
+  #btnSave{font-family:var(--font-m); font-size:11px; letter-spacing:0; text-transform:none; color:var(--cyan); display:none}
+  #btnSave:hover{border-color:var(--cyan)}
+  #loadCode{flex:1; background:#08100b; border:1px solid var(--line2); color:var(--phos);
+    font-family:var(--font-m); font-size:11px; padding:7px 9px; letter-spacing:.03em; min-width:0}
+  #loadCode::placeholder{color:var(--dim)}
+  #loadCode:focus{outline:none; border-color:var(--phos-dim)}
+  #loadErr{color:var(--red); font-size:10px; letter-spacing:.08em; margin:-10px 0 12px; display:none}
+  #lbWrap{border:1px dashed var(--line2); padding:10px 14px; margin-bottom:16px}
+  #lbTitle{font-size:10px; letter-spacing:.24em; color:var(--dim); margin-bottom:7px}
+  #lbRows{font-size:12px; line-height:1.9; white-space:pre; color:var(--ink)}
+  .lbme{color:var(--amber)}
+  #lbEntry{display:none; margin-top:9px; align-items:center; gap:8px}
+  #lbEntry .plc{color:var(--phos); font-size:12px; letter-spacing:.08em}
+  #lbName{width:76px; background:#08100b; border:1px solid var(--phos-dim); color:var(--amber);
+    font-family:var(--font-m); font-size:16px; font-weight:600; letter-spacing:.35em; text-align:center;
+    padding:5px 2px 5px 8px; text-transform:uppercase}
+  #lbName:focus{outline:none; border-color:var(--phos)}
+  .btn.primary{background:#10241a; border-color:var(--phos-dim); color:var(--phos)}
+  .btn.primary:hover{background:#153627}
+  .btn[disabled]{opacity:.35; pointer-events:none}
+  .btn.icon{min-width:38px; text-align:center; padding:7px 8px}
+
+  /* ---------- stage ---------- */
+  #stage{flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center;
+    position:relative; background:
+    radial-gradient(1200px 500px at 50% 40%, #0a120d 0%, var(--field) 70%);
+    padding:6px 10px;}
+  #cv{max-width:100%; max-height:100%; aspect-ratio:16/9; display:block;
+    border:1px solid var(--line2); background:#060a08;
+    box-shadow:0 0 60px rgba(125,255,171,.05), inset 0 0 120px rgba(0,0,0,.55);}
+  /* overlays */
+  .ov{position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:rgba(4,7,6,.86); z-index:20; backdrop-filter:blur(2px)}
+  .ov.hide{display:none}
+  .ovbox{max-width:620px; width:92%; border:1px solid var(--line2); background:var(--panel);
+    padding:26px 30px; box-shadow:0 0 80px rgba(0,0,0,.6)}
+  .ovbox h1{font-family:var(--font-d); font-size:34px; letter-spacing:.12em; color:var(--phos); line-height:1}
+  .ovbox h1 .bad{color:var(--red)}
+  .ovbox .sub{font-size:10px; letter-spacing:.3em; color:var(--dim); margin:4px 0 16px}
+  .ovbox p{color:var(--ink); line-height:1.55; margin-bottom:12px}
+  .ovbox .keys{font-size:11px; color:var(--dim); line-height:1.7; border-top:1px dashed var(--line2); padding-top:12px; margin-bottom:16px}
+  .ovbox .keys b{color:var(--phos); font-weight:600}
+  #lbTitle{font-family:var(--font-d); font-weight:700; font-size:13px; letter-spacing:.14em; color:var(--amber); margin-bottom:6px}
+  #lbRows{font-size:11.5px; line-height:1.75; white-space:pre; color:var(--ink)}
+  #lbRows .me{color:var(--phos)}
+  #lbRows .dimrow{color:var(--dim)}
+  #lbEntry{display:none; gap:8px; margin-top:8px; align-items:center}
+  #lbEntry .cta{font-size:10px; letter-spacing:.14em; color:var(--phos)}
+  #lbName{width:84px; background:#08100b; border:1px solid var(--phos-dim); color:var(--phos);
+    font-family:var(--font-m); font-size:16px; letter-spacing:.4em; text-transform:uppercase;
+    padding:5px 4px 5px 10px; text-align:center}
+  #lbName:focus{outline:none; border-color:var(--phos)}
+  #doneStats{font-size:11.5px; line-height:1.8; color:var(--ink); border:1px dashed var(--line2);
+    padding:10px 14px; margin-bottom:16px; white-space:pre-wrap}
+  #doneStats span{color:var(--amber)}
+  .ovrow{display:flex; gap:10px; flex-wrap:wrap}
+
+  /* ---------- intel strip ---------- */
+  #intel{flex:0 0 auto; display:flex; align-items:center; gap:12px;
+    background:#0a100d; border-top:1px solid var(--line); padding:5px 14px;
+    font-size:11px; min-height:30px}
+  #intel .tag{font-family:var(--font-d); font-weight:700; letter-spacing:.18em; font-size:11px;
+    color:var(--red); border:1px solid rgba(255,79,79,.4); padding:2px 8px; flex:0 0 auto}
+  #nextwave{color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1}
+  #nextwave b{color:var(--amber); font-weight:600}
+  #nextwave .new{color:var(--cyan)}
+  #tipbar{flex:0 1 46%; text-align:right; color:var(--dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  #tipbar b{color:var(--phos-dim)}
+
+  /* ---------- hardpoint rack (shop) + detail ---------- */
+  #bottom{flex:0 0 auto; display:flex; gap:10px; padding:8px 12px 10px;
+    background:var(--panel); border-top:1px solid var(--line)}
+  #shop{display:flex; gap:8px; flex-wrap:nowrap; overflow-x:auto; flex:1}
+  .card{
+    background:var(--panel2); border:1px solid var(--line2); padding:7px 9px 6px;
+    min-width:118px; user-select:none; cursor:pointer; position:relative; flex:0 0 auto;
+  }
+  .card:hover{border-color:var(--phos-dim)}
+  .card.sel{border-color:var(--phos); box-shadow:0 0 12px rgba(125,255,171,.25)}
+  .card.off{opacity:.38; cursor:not-allowed}
+  .card .nm{font-family:var(--font-d); font-weight:700; font-size:13px; letter-spacing:.06em}
+  .card .cost{color:var(--amber); font-size:12px; font-weight:600}
+  .card .ds{color:var(--dim); font-size:9.5px; line-height:1.35; margin-top:3px; height:26px}
+  .card .hk{position:absolute; top:5px; right:6px; font-size:9px; color:var(--dim);
+    border:1px solid var(--line2); padding:0 4px}
+  #detail{flex:0 0 285px; border:1px solid var(--line2); background:var(--panel2);
+    padding:8px 11px; display:flex; flex-direction:column; gap:5px}
+  #detail.hide *{visibility:hidden}
+  #dName{font-family:var(--font-d); font-weight:700; font-size:14px; letter-spacing:.06em; color:var(--phos)}
+  #dName span{color:var(--dim); font-size:11px}
+  #dStats{font-size:10.5px; color:var(--ink); line-height:1.45; white-space:pre-line; flex:1}
+  #dRow{display:flex; gap:6px}
+  #dRow .btn{padding:5px 8px; font-size:11px; flex:1}
+  #dSell{color:var(--amber)}
+  #dPrio{
+    display:none; width:100%; background:var(--panel); color:var(--phos);
+    border:1px solid var(--line2); font-family:var(--font-m); font-size:11px;
+    padding:4px 6px; letter-spacing:.06em; cursor:pointer;
+  }
+  #dPrio:hover{border-color:var(--phos-dim)}
+
+  @media (max-width:900px){
+    #detail{flex-basis:200px}
+    .stat{min-width:56px}
+    #brand small{display:none}
+  }
+</style>
+</head>
+<body>
+
+<header id="top">
+  <div id="brand">IRON PERIMETER<small>COUNTER-UAS COMMAND · v0.8</small></div>
+  <div class="stat" id="hpWrap">
+    <span class="lbl">FOB INTEGRITY</span>
+    <div id="hpBar"><div id="hpFill"></div></div>
+    <span id="hpTxt">100 / 100</span>
+  </div>
+  <div class="stat"><span class="lbl">FUNDS</span><span class="val" id="cashV">$260</span></div>
+  <div class="stat"><span class="lbl">POWER</span><span class="val" id="pwrV" style="color:var(--cyan)">0/8</span></div>
+  <div class="stat"><span class="lbl">WAVE</span><span class="val" id="waveV">0/15</span></div>
+  <div class="stat"><span class="lbl">HOSTILES</span><span class="val" id="hostV">—</span></div>
+  <div class="stat" title="Cost exchange: enemy value destroyed vs. everything you have spent (builds, upgrades, ammo, repairs). Above 1.0 you are winning the economic war."><span class="lbl">X-RATE</span><span class="val" id="xrV">—</span></div>
+  <div class="grow"></div>
+  <button class="btn" id="btnSave" title="Checkpoint code — click to copy the full code. Paste it on the start screen (or share it) to resume from this exact point: funds, integrity, wave, every emplacement, upgrade and targeting order.">⎘ …</button>
+  <button class="btn" id="btnRepair" title="Repair FOB: +10 integrity for $50 [R], between waves only">🔧 +10 $50</button>
+  <button class="btn primary" id="btnWave">LAUNCH WAVE 1 ▶</button>
+  <button class="btn icon" id="btnPause" title="Pause [Space]">❚❚</button>
+  <button class="btn icon" id="btnSpeed" title="Game speed">1×</button>
+  <button class="btn icon" id="btnSound" title="Sound">♪</button>
+</header>
+
+<main id="stage">
+  <canvas id="cv" width="1280" height="720"></canvas>
+
+  <div class="ov" id="ovMenu">
+    <div class="ovbox">
+      <h1>IRON PERIMETER</h1>
+      <div class="sub">COUNTER-UAS COMMAND · FOB "AEGIS" · D+3 04:20 LOCAL</div>
+      <p>Hostile drone activity inbound on the western threat axis. You command the base
+      air-defense grid: guns, missiles, jammers, lasers, microwave emitters, interceptor
+      drones and the radar net that ties them together. Every system draws from a limited
+      power grid — the FOB supplies 8, generators add more. Nothing shoots what nothing sees:
+      weapons engage only confirmed tracks from the FOB's organic sensors, your radars, or
+      EO/IR optics. Ammunition costs money. Rounds miss. Drones are cheap. Win the exchange.</p>
+      <div class="keys">
+        <b>LMB</b> place / select &nbsp;·&nbsp; <b>SHIFT+LMB</b> place multiple &nbsp;·&nbsp; <b>1–9</b> select system &nbsp;·&nbsp; <b>ESC</b> cancel<br>
+        <b>SPACE</b> launch wave / pause &nbsp;·&nbsp; <b>U</b> upgrade &nbsp;·&nbsp; <b>T</b> targeting mode &nbsp;·&nbsp; <b>X</b> sell &nbsp;·&nbsp; <b>E</b> EMCON &nbsp;·&nbsp; <b>R</b> repair FOB &nbsp;·&nbsp; <b>F</b> fast-forward
+      </div>
+      <div class="sub" style="margin-bottom:6px">THREAT LEVEL</div>
+      <div class="ovrow" id="diffRow" style="margin-bottom:8px">
+        <button class="btn" data-d="ez">EASY</button>
+        <button class="btn on" data-d="std">STANDARD</button>
+        <button class="btn" data-d="vet">VETERAN</button>
+        <button class="btn" data-d="ngt">NIGHTMARE</button>
+      </div>
+      <div id="diffDesc" style="font-size:10.5px;color:var(--dim);line-height:1.5;min-height:44px;margin-bottom:12px"></div>
+      <div class="sub" style="margin-bottom:6px">RESUME FROM CHECKPOINT</div>
+      <div class="ovrow" style="margin-bottom:16px">
+        <input id="loadCode" placeholder="paste checkpoint code (IP6…) — difficulty comes with it" spellcheck="false" autocomplete="off">
+        <button class="btn" id="btnLoad">⎗ LOAD</button>
+      </div>
+      <div id="loadErr">CODE REJECTED</div>
+      <div class="ovrow"><button class="btn primary" id="btnStart" style="font-size:16px;padding:10px 26px">▶ ASSUME COMMAND</button></div>
+    </div>
+  </div>
+
+  <div class="ov hide" id="ovPause">
+    <div class="ovbox" style="max-width:440px">
+      <h1 style="font-size:26px">❚❚ PAUSED</h1>
+      <div class="sub" id="pauseSub">OPERATION SUSPENDED</div>
+      <div class="ovrow" style="flex-direction:column;align-items:stretch;gap:8px">
+        <button class="btn primary" id="btnResume">▶ RESUME</button>
+        <button class="btn" id="btnPauseSave" style="font-family:var(--font-m);text-transform:none;letter-spacing:0">⎘ COPY CHECKPOINT</button>
+        <button class="btn" id="btnPauseRestart">↺ RESTART RUN</button>
+        <button class="btn" id="btnPauseMenu">⌂ MAIN MENU</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ov hide" id="ovDone">
+    <div class="ovbox">
+      <h1 id="doneTitle">PERIMETER HELD</h1>
+      <div class="sub" id="doneMsg">ALL WAVES REPELLED</div>
+      <div id="doneStats"></div>
+      <div id="lbWrap">
+        <div id="lbTitle">TOP 5 — COMMAND NET</div>
+        <div id="lbRows">CONTACTING COMMAND NET…</div>
+        <div id="lbEntry" class="ovrow">
+          <span class="plc">YOU PLACED <b id="lbRank">#1</b> — CALLSIGN:</span>
+          <input id="lbName" maxlength="4" placeholder="ACES" spellcheck="false" autocomplete="off">
+          <button class="btn primary" id="btnLbSubmit">POST</button>
+        </div>
+      </div>
+      <div class="ovrow">
+        <button class="btn primary" id="btnEndless">▶ CONTINUE — ENDLESS</button>
+        <button class="btn" id="btnRestart">↺ RESTART</button>
+        <button class="btn" id="btnToMenu">⎗ LOAD CHECKPOINT</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="intel">
+  <span class="tag">INTEL</span>
+  <span id="nextwave">Awaiting tasking…</span>
+  <span id="tipbar"></span>
+</div>
+
+<footer id="bottom">
+  <div id="shop"></div>
+  <div id="detail" class="hide">
+    <div id="dName">—</div>
+    <div id="dStats"></div>
+    <select id="dPrio" title="ORACLE optic link: hunt a specific drone type"></select>
+    <div id="dRow">
+      <button class="btn" id="dUp">UPGRADE</button>
+      <button class="btn" id="dMode">TGT</button>
+      <button class="btn" id="dEmcon" title="Emission control: power this emitter down. Silent systems are invisible to WASP anti-radiation drones and draw no grid power — but sense/jam/shoot nothing. [E]">EMCON</button>
+      <button class="btn" id="dSell">SELL</button>
+    </div>
+  </div>
+</footer>
+
+<script>
+'use strict';
+/* ================= IRON PERIMETER — core ================= */
+/* ---- NETWORK CONFIG ----------------------------------------------------
+   To run a site-wide leaderboard on your own hosting, create a free
+   Firebase Realtime Database and paste its URL below (see DEPLOY.md).
+   Leave blank to auto-detect: Claude shared storage when running as a
+   published artifact, otherwise a this-device-only board.               */
+const NET = { firebaseUrl: '' }; // e.g. 'https://your-project-default-rtdb.firebaseio.com'
+const W = 1280, H = 720;
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const BASE = { x: 1128, y: 360, r: 54, sense: 260 };
+
+/* ---------- helpers ---------- */
+const rand = (a, b) => a + Math.random() * (b - a);
+const ri = (a, b) => Math.floor(rand(a, b + 1));
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const lerp = (a, b, t) => a + (b - a) * t;
+const TAU = Math.PI * 2;
+const fmt$ = n => '$' + Math.floor(n);
+const el = id => document.getElementById(id);
+
+/* ---------- audio (synth, no assets) ---------- */
+let AC = null, master = null, soundOn = true;
+function initAudio() {
+  if (AC) return;
+  try {
+    AC = new (window.AudioContext || window.webkitAudioContext)();
+    master = AC.createGain(); master.gain.value = 0.5; master.connect(AC.destination);
+  } catch (e) { AC = null; }
+}
+function tone(f0, f1, dur, type, vol) {
+  if (!AC || !soundOn) return;
+  const t = AC.currentTime;
+  const o = AC.createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.setValueAtTime(f0, t);
+  o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.02);
+}
+function noiseHit(dur, vol, cutoff) {
+  if (!AC || !soundOn) return;
+  const t = AC.currentTime, n = Math.floor(AC.sampleRate * dur);
+  const buf = AC.createBuffer(1, n, AC.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  const s = AC.createBufferSource(); s.buffer = buf;
+  const f = AC.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cutoff;
+  const g = AC.createGain(); g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  s.connect(f); f.connect(g); g.connect(master); s.start(t);
+}
+const sfx = {
+  shot:   () => tone(1500, 700, 0.045, 'square', 0.025),
+  launch: () => { noiseHit(0.45, 0.10, 900); tone(300, 90, 0.4, 'sawtooth', 0.05); },
+  boom:   s => { noiseHit(0.25 + s * 0.12, 0.14 + s * 0.05, 500 + s * 200); tone(120, 40, 0.3, 'triangle', 0.08); },
+  zap:    () => { tone(2400, 200, 0.22, 'sawtooth', 0.07); noiseHit(0.15, 0.06, 3000); },
+  laser:  () => tone(920, 860, 0.07, 'sine', 0.03),
+  baseHit:() => { noiseHit(0.5, 0.22, 350); tone(90, 35, 0.5, 'triangle', 0.12); },
+  horn:   () => { tone(220, 220, 0.28, 'sawtooth', 0.06); setTimeout(() => tone(165, 165, 0.4, 'sawtooth', 0.06), 260); },
+  cash:   () => tone(880, 1320, 0.09, 'square', 0.03),
+  click:  () => tone(600, 500, 0.04, 'square', 0.03),
+  deny:   () => tone(180, 120, 0.12, 'square', 0.05),
+};
+
+/* ---------- hostile catalog ---------- */
+const ETYPES = {
+  hornet: { name: 'HORNET', full: 'Hornet — FPV strike quad', hp: 12, spd: 88, dmg: 4, bounty: 5, r: 7, armor: 0, weave: 22, wf: 3.4, kind: 'quad', color: '#ff5c5c',
+    brief: 'Cheap FPV kamikaze. Fast, fragile, comes in numbers. Guns and jamming eat these.' },
+  viper:  { name: 'VIPER', full: 'Viper — fiber-optic FPV', hp: 20, spd: 100, dmg: 6, bounty: 8, r: 7, armor: 0, weave: 26, wf: 3.8, kind: 'quad', color: '#ff9f43', hardened: true,
+    brief: 'Fiber-optic guided FPV — spool trails behind it. IMMUNE to jamming. Has to be shot down.' },
+  geran:  { name: 'GERAN', full: 'Geran — loitering munition', hp: 46, spd: 56, dmg: 12, bounty: 12, r: 11, armor: 1, weave: 8, wf: 1.1, kind: 'wing', color: '#e3d271',
+    brief: 'Delta-wing loitering munition. Light armor blunts autocannon fire.' },
+  decoy:  { name: 'DECOY', full: 'Decoy — foam mimic', hp: 6, spd: 78, dmg: 1, bounty: 1, r: 10, armor: 0, weave: 12, wf: 1.4, kind: 'wing', color: '#e3d271', decoy: true,
+    brief: 'Cardboard and foam painted like a Geran. Worth $1. Every missile it baits costs you $10 — check targeting priorities.' },
+  sparrow:{ name: 'SPARROW', full: 'Sparrow — recon drone', hp: 18, spd: 120, dmg: 0, bounty: 15, r: 8, armor: 0, weave: 10, wf: 2.0, kind: 'wing', color: '#b8c4b8', recon: true,
+    brief: 'Recon drone — it is MAPPING YOUR GRID, not attacking. If it crosses the AO alive, the next raid arrives coordinated on your weakest axis. Shoot it down.' },
+  wasp:   { name: 'WASP', full: 'Wasp — anti-radiation drone', hp: 26, spd: 92, dmg: 8, bounty: 12, r: 8, armor: 0, weave: 20, wf: 3.0, kind: 'quad', color: '#b8ff5c', sead: true,
+    brief: 'SEAD drone — homes on your emitters (radar, jammers, SAMs) and knocks them OFFLINE for 8s. Screen them with guns.' },
+  ghost:  { name: 'GHOST', full: 'Ghost — low-observable wing', hp: 36, spd: 72, dmg: 10, bounty: 18, r: 10, armor: 0, weave: 14, wf: 1.6, kind: 'wing', color: '#9fb2c4', stealth: true,
+    brief: 'Low-observable airframe — your systems detect it late. SENTINEL radar burns through and datalinks the track.' },
+  specter:{ name: 'SPECTER', full: 'Specter — high-altitude striker', hp: 60, spd: 58, dmg: 18, bounty: 22, r: 11, armor: 1, weave: 10, wf: 1.2, kind: 'wing', color: '#d8c7ff', hialt: true,
+    brief: 'Cruises above gun and HPM envelopes — only JAVELIN and DAZZLER can reach it until its terminal dive near the wire.' },
+  static: { name: 'STATIC', full: 'Static — escort jammer', hp: 115, spd: 40, dmg: 15, bounty: 20, r: 13, armor: 1, weave: 6, wf: 0.8, kind: 'hexa', color: '#5c9dff', aura: 135,
+    brief: 'Escort jammer — every system inside its bubble fires 45% slower. Priority kill.' },
+  mule:   { name: 'MULE', full: 'Mule — heavy hexacopter', hp: 160, spd: 30, dmg: 22, bounty: 25, r: 14, armor: 2, weave: 5, wf: 0.8, kind: 'hexa', color: '#c85cff',
+    brief: 'Heavy bomber hexacopter, armored. Missiles and directed energy — don\'t plink at it.' },
+  hive:   { name: 'HIVE', full: 'Hive — swarm carrier', hp: 360, spd: 22, dmg: 30, bounty: 50, r: 19, armor: 3, weave: 4, wf: 0.5, kind: 'hexa', color: '#ff5cd0', spawner: 4.5,
+    brief: 'Carrier drone. Releases Hornets while alive and on destruction. Kill it FAST and at range.' },
+  kraken: { name: 'KRAKEN', full: 'KRAKEN — heavy strike UCAV', hp: 2600, spd: 15, dmg: 100, bounty: 250, r: 26, armor: 5, weave: 3, wf: 0.3, kind: 'wing', color: '#ff3b3b', boss: true, spawner: 7,
+    brief: '⚠ HEAVY UCAV, 100 dmg payload — if it reaches the wire, the FOB is gone. Commit everything.' },
+};
+
+/* ---------- defense catalog ---------- */
+const TKEYS = ['vulcan', 'sam', 'laser', 'pulse', 'jammer', 'falcon', 'radar', 'optic', 'gen'];
+const TT = {
+  vulcan: { name: 'VULCAN CIWS', cost: 60, range: 135, rof: 6, dmg: 4, kind: 'gun', draw: 1,
+    ds: 'Rapid autocannon. Cheap rounds, short reach. Shreds light drones; armor blunts it.' },
+  sam:    { name: 'JAVELIN SAM', cost: 120, range: 270, minR: 90, cd: 2.2, dmg: 60, aoe: 27, ammoCost: 10, kind: 'sam', draw: 2,
+    ds: 'Interceptor missiles, $10 a shot. Reaches high altitude. Cannot arm inside 90m — keep it back from the wire.' },
+  laser:  { name: 'DAZZLER HEL', cost: 150, range: 175, dpsMin: 9, dpsMax: 34, ramp: 1.4, heatMax: 4, kind: 'laser', draw: 3,
+    ds: 'High-energy laser. Ramps on a held target, ignores armor, reaches high altitude. Overheats.' },
+  pulse:  { name: 'PULSE HPM', cost: 170, range: 125, cd: 5, dmg: 20, kind: 'pulse', draw: 2,
+    ds: 'Microwave burst fries every drone in radius + brief stun. The swarm answer. Fiber drones resist.' },
+  jammer: { name: 'SCRAMBLER EW', cost: 90, range: 115, slow: 0.45, kind: 'jam', draw: 1,
+    ds: 'RF jamming field: slows and destabilizes RF-linked drones. Useless vs fiber-optic Vipers.' },
+  falcon: { name: 'FALCON BAY', cost: 140, range: 300, dmg: 46, cap: 2, rebuild: 5.5, kind: 'bay', draw: 2,
+    ds: 'Interceptor drone hangar. Launches hunter drones that ram low-flying threats. Rebuilds free.' },
+  radar:  { name: 'SENTINEL RADAR', cost: 80, range: 185, buff: 1.2, kind: 'radar', draw: 1,
+    ds: 'Search radar. +20% range to systems in coverage; burns through stealth, datalinks the track.' },
+  optic:  { name: 'ORACLE EO/IR', cost: 120, range: 170, kind: 'optic', draw: 1,
+    ds: 'Optical fire-control tracker. Systems in view can prioritize drone TYPES, ignore decoys, and hit harder at MK-2+. Passive — Wasps can\'t home on it.' },
+  gen:    { name: 'GENERATOR', cost: 110, range: 0, covR: 190, kind: 'gen', draw: 0, pwr: 5,
+    ds: 'Field generator: +5 grid power. The FOB supplies 8 — every system draws from the grid.' },
+};
+function upCost(t) { const b = TT[t.k].cost; return Math.round(b * (t.level === 1 ? 1.0 : 1.6) / 5) * 5; }
+function powerCap() { let p = 8; for (const t of towers) if (t.k === 'gen') p += TT.gen.pwr; return p; }
+function powerUsed() { let p = 0; for (const t of towers) p += (t.emcon ? 0 : TT[t.k].draw); return p; }
+function applyStats(t) {
+  const d = TT[t.k], L = t.level - 1;
+  t.range = d.range * (1 + 0.11 * L);
+  switch (t.k) {
+    case 'vulcan': t.dmg = d.dmg + 2 * L; t.rof = d.rof + 1.7 * L; break;
+    case 'sam': t.dmg = d.dmg + 22 * L; t.aoe = d.aoe + 5 * L; t.cdMax = d.cd * Math.pow(0.86, L); t.ammoCost = d.ammoCost; break;
+    case 'laser': t.dpsMin = d.dpsMin * (1 + 0.3 * L); t.dpsMax = d.dpsMax * (1 + 0.4 * L); t.heatMax = d.heatMax + 1.1 * L; t.rampT = d.ramp; break;
+    case 'pulse': t.dmg = d.dmg + 9 * L; t.cdMax = d.cd - 0.8 * L; break;
+    case 'jammer': t.slow = d.slow + 0.11 * L; break;
+    case 'falcon': t.dmg = d.dmg + 16 * L; t.cap = d.cap + (t.level >= 3 ? 1 : 0); t.rebuild = d.rebuild * Math.pow(0.82, L); break;
+    case 'radar': t.buffMul = d.buff + 0.06 * L; break;
+    case 'optic': t.dmgBuff = [0, 0.08, 0.15][L]; break;
+    case 'gen': break;
+  }
+}
+function makeTower(k, x, y) {
+  const t = { k, kind: TT[k].kind, x, y, level: 1, invested: TT[k].cost,
+    cd: 0, heat: 0, over: false, ramp: 0, tg: null, firing: false,
+    mode: (k === 'sam' ? 'strong' : 'near'), sw: rand(0, TAU), aim: rand(0, TAU),
+    stock: TT[k].cap || 0, rb: 0, dry: 0, fx: 0, buffMulOn: 1, sndT: 0,
+    offlineT: 0, rofMul: 1, prio: null, optic: false, opticMul: 1, emcon: false,
+    struct: (k === 'gen' ? 3 : 0), powered: true };
+  applyStats(t);
+  return t;
+}
+
+/* ---------- state ---------- */
+let state = 'menu';           // menu | build | combat | over | won
+let paused = false, speed = 1;
+let cash = 260, baseHP = 100, baseMax = 100;
+let wave = 0, kills = 0, earned = 0, elapsed = 0, time = 0;
+let endless = false, hpMul = 1, spdMul = 1;
+let spent = 0, destroyed = 0, repairSpent = 0;
+let SYS_STATS = {};
+function resetSys() { SYS_STATS = {}; for (const k of TKEYS) SYS_STATS[k] = { shots: 0, kills: 0, spent: 0 }; }
+function addSpend(k, amt) { spent += amt; if (SYS_STATS[k]) SYS_STATS[k].spent += amt; }
+let diffHp = 1, diffBounty = 1, diffSpd = 1, diffKey = 'std';
+const DKEYS = ['ez', 'std', 'vet', 'ngt'];
+const DIFFS = {
+  ez:  { name: 'EASY', hp: 0.88, spd: 0.95, b: 1.1, base: 100, adapt: null, fieldPwr: false,
+    desc: 'Scripted attack axes, forgiving economy, slower drones. Learn the systems without the enemy learning you.' },
+  std: { name: 'STANDARD', hp: 1.0, spd: 1.0, b: 1.0, base: 100, fieldPwr: false,
+    adapt: { cap: 0.5, ramp: 0.08, focus: 0.55, comp: 0.8, reconStart: 4, reconEvery: 3, decay: 0.55, spdBonus: 0 },
+    desc: 'ADAPTIVE ENEMY: they log where drones die and where they leak through, and slowly re-route raids around your kill zones. Recon Sparrows sharpen their picture — down them.' },
+  vet: { name: 'VETERAN', hp: 1.1, spd: 1.08, b: 0.9, base: 80, fieldPwr: true,
+    adapt: { cap: 0.6, ramp: 0.1, focus: 0.7, comp: 0.75, reconStart: 4, reconEvery: 2, decay: 0.65, spdBonus: 0.04 },
+    desc: 'FAST LEARNERS + EXPEDITIONARY POWER: recon every other wave, longer memory, coordinated raids arrive quicker. The FOB grid reaches 250m — field generators beyond, and Wasps hunt them.' },
+  ngt: { name: 'NIGHTMARE', hp: 1.3, spd: 1.2, b: 0.75, base: 60, fieldPwr: true,
+    adapt: { cap: 0.8, ramp: 0.14, focus: 0.85, comp: 0.6, reconStart: 3, reconEvery: 2, decay: 0.75, spdBonus: 0.12 },
+    desc: 'A THINKING OPPONENT AT SPEED: near-total re-routing, elephant memory, compressed +12%-speed raids after every recon leak. Fast drones, 60-integrity FOB. Grid architects only.' },
+};
+const FOBPWR = 250; // FOB power-grid reach in expeditionary (field power) modes
+let axisKills = { left: 0, top: 0, bottom: 0 };
+let axisLeaks = { left: 0, top: 0, bottom: 0 };
+let intelBoost = false, reconEscaped = false;
+let waveStartCode = '';
+let enemies = [], towers = [], projs = [], birds = [], parts = [], texts = [], rings = [], tracers = [];
+let spawnQ = [], nextGroups = null;
+let placing = null, sel = null, hoverT = null;
+let mouse = { x: 0, y: 0, in: false, shift: false };
+let shake = 0, flash = 0, waveBanner = 0;
+const seen = new Set();
+
+/* ---------- factories ---------- */
+function spawnEnemy(type, edge, px, py) {
+  const d = ETYPES[type];
+  let x, y;
+  if (px !== undefined) { x = px; y = py; }
+  else if (edge === 'top') { x = rand(70, 760); y = -34; }
+  else if (edge === 'bottom') { x = rand(70, 760); y = H + 34; }
+  else { x = -34; y = rand(46, H - 46); }
+  // recon drones survey across the AO instead of attacking
+  let rtx = null, rty = null;
+  if (d.recon) {
+    if (edge === 'top') { rtx = rand(560, 1020); rty = H + 60; }
+    else if (edge === 'bottom') { rtx = rand(560, 1020); rty = -60; }
+    else { rtx = W + 60; rty = rand(150, H - 150); }
+  }
+  enemies.push({
+    type, kind: d.kind, name: d.name, color: d.color,
+    x, y, r: d.r, spd: d.spd * spdMul, dmg: d.dmg, armor: d.armor, bounty: d.bounty,
+    hp: Math.round(d.hp * hpMul), max: Math.round(d.hp * hpMul),
+    hardened: !!d.hardened, stealth: !!d.stealth, boss: !!d.boss,
+    spawner: d.spawner || 0, broodT: d.spawner ? d.spawner * 0.6 : 0,
+    tx: d.recon ? rtx : BASE.x + rand(-16, 16), ty: d.recon ? rty : BASE.y + rand(-46, 46),
+    recon: !!d.recon, spawnEdge: edge || 'left',
+    weave: d.weave, wf: d.wf, ph: rand(0, TAU), t: rand(0, 10),
+    rot: 0, revealT: 0, stunT: 0, jammed: false, dead: false, arrived: false,
+    alt: d.hialt ? 'hi' : 'lo', aura: d.aura || 0, sead: !!d.sead, decoy: !!d.decoy, tw: null,
+  });
+}
+function damage(e, amt, kinetic, srck) {
+  if (e.dead) return;
+  let dm = kinetic ? Math.max(1, amt - e.armor) : amt;
+  e.hp -= dm;
+  if (srck) e.lastHit = srck;
+  if (e.hp <= 0) { e.dead = true; onKill(e); }
+}
+function onKill(e) {
+  const b = Math.max(1, Math.round(e.bounty * diffBounty));
+  cash += b; earned += b; kills++;
+  destroyed += e.bounty;
+  axisKills[e.spawnEdge] = (axisKills[e.spawnEdge] || 0) + e.bounty;
+  if (e.recon) addText(e.x, e.y - 20, 'RECON DOWNED', '#7dffab');
+  if (e.lastHit && SYS_STATS[e.lastHit]) SYS_STATS[e.lastHit].kills++;
+  addText(e.x, e.y - 14, '+' + b, '#ffb454');
+  explode(e.x, e.y, e.r);
+  sfx.boom(clamp(e.r / 12, 0.4, 2));
+  if (e.type === 'hive') for (let i = 0; i < 4; i++) spawnEnemy('hornet', null, e.x + rand(-14, 14), e.y + rand(-14, 14));
+  if (e.boss) { flash = 0.8; shake = 1.2; }
+}
+function addText(x, y, txt, color) { texts.push({ x, y, txt, color, life: 1.1 }); }
+function explode(x, y, r) {
+  const n = clamp(Math.round(r * 1.7), 8, 34);
+  for (let i = 0; i < n; i++) {
+    const a = rand(0, TAU), s = rand(30, 90 + r * 8);
+    parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rand(0.3, 0.7), max: 0.7,
+      size: rand(1.5, 3.5), color: Math.random() < 0.6 ? '#ffb454' : '#ff5c3a', drag: 0.92 });
+  }
+  for (let i = 0; i < Math.round(r / 3) + 2; i++)
+    parts.push({ x: x + rand(-r, r) * 0.4, y: y + rand(-r, r) * 0.4, vx: rand(-12, 12), vy: rand(-30, -8),
+      life: rand(0.5, 1.1), max: 1.1, size: rand(4, 8 + r * 0.3), color: '#3a3f3a', drag: 0.97, smoke: true });
+  rings.push({ x, y, r: 4, max: r * 2.6 + 12, life: 0.28, maxLife: 0.28, color: '#ffd9a0', lw: 2 });
+}
+function smokePuff(x, y) {
+  parts.push({ x, y, vx: rand(-8, 8), vy: rand(-8, 8), life: rand(0.35, 0.6), max: 0.6,
+    size: rand(2, 4), color: '#8a8f8a', drag: 0.96, smoke: true });
+}
+
+/* ================= waves ================= */
+const g = (type, count, interval, delay = 0, edge = 'left') => ({ type, count, interval, delay, edge });
+const WAVES = [
+  [g('hornet', 10, 0.9)],
+  [g('hornet', 14, 0.7), g('geran', 2, 2, 4)],
+  [g('hornet', 12, 0.6), g('geran', 5, 1.5, 2), g('decoy', 4, 1.2, 5)],
+  [g('viper', 8, 0.7), g('hornet', 10, 0.6, 5, 'top')],
+  [g('hornet', 24, 0.4), g('mule', 3, 3.5, 5), g('decoy', 6, 0.9, 3)],
+  [g('wasp', 6, 1.2, 2), g('geran', 8, 1.3, 0), g('hornet', 8, 0.6, 8)],
+  [g('specter', 4, 2.5, 3), g('viper', 12, 0.55, 0), g('decoy', 8, 0.8, 6, 'top')],
+  [g('hive', 1, 1, 3), g('static', 1, 1, 6), g('hornet', 18, 0.45), g('wasp', 4, 1.5, 10, 'top')],
+  [g('ghost', 6, 1.6, 2), g('geran', 10, 1.1, 0, 'top'), g('specter', 4, 2.2, 7, 'bottom')],
+  [g('viper', 24, 0.4), g('static', 2, 7, 4), g('wasp', 6, 1.3, 8, 'bottom')],
+  [g('hive', 2, 6, 2), g('mule', 8, 1.2, 4), g('decoy', 10, 0.4, 0), g('specter', 6, 1.2, 10, 'top')],
+  [g('hornet', 34, 0.15), g('viper', 20, 0.2, 5, 'top'), g('static', 3, 5, 8, 'bottom'), g('wasp', 6, 0.8, 10)],
+  [g('ghost', 12, 0.6, 0), g('specter', 10, 0.9, 4, 'top'), g('wasp', 10, 0.7, 2), g('hive', 2, 8, 12)],
+  [g('mule', 12, 0.7, 0), g('hive', 3, 6, 4), g('static', 4, 4, 2, 'top'), g('viper', 22, 0.25, 10, 'bottom'), g('decoy', 12, 0.3, 0)],
+  [g('kraken', 1, 1, 6), g('static', 3, 7, 0), g('wasp', 8, 0.9, 4, 'top'), g('geran', 12, 0.7, 2), g('specter', 8, 1.2, 14, 'bottom'), g('viper', 14, 0.3, 20)],
+];
+const LAST_WAVE = 15;
+function genEndless(n) {
+  const m = n - LAST_WAVE;
+  const defs = [['hornet', 5], ['viper', 8], ['geran', 12], ['decoy', 2], ['wasp', 14], ['ghost', 18], ['specter', 24], ['static', 26], ['mule', 25], ['hive', 50]];
+  let budget = 180 + 70 * m + m * m * 9;
+  const gs = []; let guard = 0;
+  while (budget > 40 && guard++ < 6) {
+    const [ty, c] = defs[ri(0, defs.length - 1)];
+    const maxN = Math.max(2, Math.floor(budget / c));
+    const count = ri(2, Math.min(maxN, ty === 'hive' ? 3 : 26));
+    budget -= count * c;
+    gs.push({ type: ty, count, interval: (ty === 'hornet' || ty === 'viper' || ty === 'decoy') ? 0.28 : 1.1,
+      delay: rand(0, 9), edge: ['left', 'left', 'top', 'bottom'][ri(0, 3)] });
+  }
+  gs.push({ type: 'hornet', count: 6 + m, interval: 0.4, delay: 2, edge: 'left' });
+  return gs;
+}
+function prepareNext() {
+  nextGroups = (wave < LAST_WAVE && !endless) ? WAVES[wave] : genEndless(wave + 1);
+  renderPreview();
+}
+function axisWeights() {
+  const axes = ['left', 'top', 'bottom'];
+  const k = axes.map(a => axisKills[a] || 0), l = axes.map(a => axisLeaks[a] || 0);
+  const kmax = Math.max(1, k[0], k[1], k[2]);
+  const lsum = Math.max(1, l[0] + l[1] + l[2]);
+  const w = axes.map((a, i) => Math.max(0.2, 1 + 2.5 * (l[i] / lsum) - 0.7 * (k[i] / kmax)));
+  return { axes, w };
+}
+function pickAxis(aw) {
+  const tot = aw.w[0] + aw.w[1] + aw.w[2];
+  let r = Math.random() * tot;
+  for (let i = 0; i < 3; i++) { if ((r -= aw.w[i]) <= 0) return aw.axes[i]; }
+  return 'left';
+}
+function primaryAxis() {
+  const aw = axisWeights();
+  const i = aw.w.indexOf(Math.max(...aw.w));
+  return { name: ['WEST', 'NORTH', 'SOUTH'][i], edge: aw.axes[i], sharp: Math.max(...aw.w) / Math.min(...aw.w) };
+}
+function startWave() {
+  if (state !== 'build') return;
+  waveStartCode = encodeSave(); // checkpoint: build phase, exactly as launched
+  wave++;
+  const ramp = 1 + 0.07 * (Math.min(wave, LAST_WAVE) - 1);
+  const extra = wave > LAST_WAVE ? Math.pow(1.09, wave - LAST_WAVE) : 1;
+  hpMul = ramp * extra * diffHp;
+  const prof = DIFFS[diffKey].adapt;
+  const intelWave = intelBoost && !!prof;
+  const rampSpd = Math.min(1.9, 1 + 0.035 * (Math.min(wave, LAST_WAVE) - 1) + (wave > LAST_WAVE ? 0.02 * (wave - LAST_WAVE) : 0));
+  spdMul = rampSpd * diffSpd * (intelWave ? 1 + prof.spdBonus : 1);
+  let groups = nextGroups.map(q => ({ ...q }));
+  if (prof) {
+    // the enemy re-routes: override probability, focus and raid compression scale with tier
+    const aw = axisWeights();
+    const adaptP = intelWave ? Math.min(0.9, prof.cap + 0.15) : Math.min(prof.cap, prof.ramp * (wave - 1));
+    const best = primaryAxis().edge;
+    for (const q of groups) {
+      if (q.type === 'sparrow') continue;
+      if (Math.random() < adaptP) q.edge = intelWave && Math.random() < prof.focus ? best : pickAxis(aw);
+      if (intelWave) q.delay *= prof.comp; // coordinated, compressed raid
+    }
+    // recon flights probe ahead of the raids — tier sets cadence and start
+    if (wave >= prof.reconStart && (wave - prof.reconStart) % prof.reconEvery === 0) {
+      groups.unshift({ type: 'sparrow', count: wave >= (diffKey === 'ngt' ? 8 : 10) ? 2 : 1, interval: 6, delay: 1,
+        edge: ['left', 'top', 'bottom'][ri(0, 2)] });
+    }
+    intelBoost = false;
+  }
+  spawnQ = groups.map(q => ({ ...q, t: q.delay, left: q.count }));
+  groups.forEach(q => seen.add(q.type));
+  state = 'combat'; waveBanner = 2.2;
+  el('btnWave').disabled = true;
+  el('nextwave').innerHTML = '<b>WAVE ' + wave + '</b> — engagement in progress…';
+  sfx.horn();
+}
+function queuedLeft() { let n = 0; for (const q of spawnQ) n += q.left; return n; }
+
+/* ================= update ================= */
+function nearestEnemy(x, y, r, lowOnly, confOnly) {
+  let best = null, bd = r;
+  for (const e of enemies) {
+    if (e.dead || (lowOnly && e.alt === 'hi') || (confOnly && e.revealT <= 0)) continue;
+    const d = Math.hypot(e.x - x, e.y - y); if (d < bd) { bd = d; best = e; }
+  }
+  return best;
+}
+function canDetect(t, e, effR) {
+  if (e.revealT <= 0) return false; // no confirmed track — nothing to shoot at
+  if (e.alt === 'hi' && t.kind !== 'sam' && t.kind !== 'laser') return false;
+  const d = dist(t, e);
+  if (t.kind === 'sam' && d < TT.sam.minR) return false; // missiles can't arm inside minimum range
+  return d <= effR;
+}
+function pickTarget(t, effR) {
+  const cands = [];
+  for (const e of enemies) if (!e.dead && canDetect(t, e, effR)) cands.push(e);
+  if (!cands.length) return null;
+  let pool = cands;
+  if (t.optic) {
+    // explicit type priority: hunt that type if any are in range
+    if (t.prio) {
+      const typed = cands.filter(e => e.type === t.prio);
+      if (typed.length) pool = typed;
+    }
+    // optical ID: never waste fire on decoys while real threats are in range
+    if (pool === cands) {
+      const real = pool.filter(e => !e.decoy);
+      if (real.length) pool = real;
+    }
+  }
+  let best = null, bv = null;
+  for (const e of pool) {
+    let v;
+    if (t.mode === 'near') v = dist(t, e);
+    else if (t.mode === 'first') v = dist(e, BASE);
+    else if (t.mode === 'strong') v = -e.hp;
+    else v = e.hp; // weak
+    if (bv === null || v < bv) { bv = v; best = e; }
+  }
+  return best;
+}
+
+function updEnemies(dt) {
+  for (const e of enemies) {
+    if (e.dead) continue;
+    e.t += dt;
+    // EW jamming (offline/silent emitters don't jam; high-altitude flies above the field)
+    let slow = 0;
+    if (state === 'combat' && e.alt !== 'hi') {
+      for (const t of towers) {
+        if (t.kind !== 'jam' || t.offlineT > 0 || t.emcon || !t.powered) continue;
+        let s = t.slow;
+        if (e.hardened) s = (t.level >= 3) ? t.slow * 0.45 : 0;
+        if (s > 0 && dist(t, e) < t.range * t.buffMulOn) slow = Math.max(slow, s);
+      }
+    }
+    e.jammed = slow > 0;
+    let sm = 1 - slow;
+    if (e.stunT > 0) { e.stunT -= dt; sm = 0; }
+    e.revealT -= dt;
+    // SENSOR FUSION — a weapon can only engage a confirmed track:
+    //   FOB organic sensors (stealth seen at 55%), search radar (stealth burn-through
+    //   at 55% of radar range), or EO/IR optic (sees stealth at full range).
+    let conf = dist(e, BASE) < BASE.sense * (e.stealth ? 0.55 : 1);
+    if (!conf) for (const t of towers) {
+      if (t.offlineT > 0 || t.emcon || !t.powered) continue;
+      if (t.kind === 'radar' && dist(t, e) < t.range * (e.stealth ? 0.55 : 1)) { conf = true; break; }
+      if (t.kind === 'optic' && dist(t, e) < t.range) { conf = true; break; }
+    }
+    if (conf) e.revealT = 0.6; // track persistence on the datalink
+    // Recon: survey run — cross the AO and exfiltrate; never attacks
+    if (e.recon) {
+      const a0 = Math.atan2(e.ty - e.y, e.tx - e.x);
+      e.x += Math.cos(a0) * e.spd * sm * dt;
+      e.y += Math.sin(a0) * e.spd * sm * dt;
+      e.rot = a0;
+      if (e.x > W + 40 || e.x < -40 || e.y > H + 40 || e.y < -40) {
+        e.dead = true; e.arrived = true; // exfiltrated — no bounty
+        if (DIFFS[diffKey].adapt) {
+          intelBoost = true; reconEscaped = true;
+          addText(clamp(e.x, 60, W - 60), clamp(e.y, 40, H - 40), '⚠ RECON EXFILTRATED', '#ff9f43');
+          sfx.deny();
+        }
+      }
+      continue;
+    }
+    // Specter: terminal dive near the wire
+    if (e.alt === 'hi' && dist(e, BASE) < 260) {
+      e.alt = 'lo'; e.spd *= 1.8; // terminal dive — attack speed
+
+      addText(e.x, e.y - e.r - 10, 'TERMINAL DIVE', '#d8c7ff');
+    }
+    // Wasp SEAD: home on live emissions only — EMCON or offline emitters don't radiate
+    if (e.sead && state === 'combat') {
+      if (!e.tw || (e.tw.offlineT > 0 && e.tw.k !== 'gen') || e.tw.emcon || !towers.includes(e.tw)) {
+        e.tw = null;
+        let bs = Infinity;
+        for (const t of towers) {
+          if (t.emcon) continue;
+          const fieldGen = DIFFS[diffKey].fieldPwr && t.k === 'gen';
+          const emitter = t.offlineT <= 0 && (t.kind === 'radar' || t.kind === 'jam' || (t.kind === 'sam' && t.powered));
+          if (!emitter && !fieldGen) continue;
+          const sc = dist(t, e);
+          if (sc < bs) { bs = sc; e.tw = t; }
+        }
+      }
+      if (e.tw) {
+        e.tx = e.tw.x; e.ty = e.tw.y;
+        if (dist(e, e.tw) < 18) {
+          if (e.tw.k === 'gen') {
+            e.tw.struct--;
+            if (e.tw.struct <= 0) {
+              addText(e.tw.x, e.tw.y - 26, 'GENERATOR DESTROYED', '#ff4f4f');
+              explode(e.tw.x, e.tw.y, 16);
+              towers.splice(towers.indexOf(e.tw), 1);
+              if (sel === e.tw) { sel = null; refreshDetail(); }
+              _pwr = '';
+            } else {
+              e.tw.offlineT = 10;
+              addText(e.tw.x, e.tw.y - 26, 'GENERATOR HIT ' + e.tw.struct + '/3', '#ff9f43');
+              explode(e.x, e.y, e.r + 3);
+            }
+          } else {
+            e.tw.offlineT = 8; e.tw.firing = false;
+            addText(e.tw.x, e.tw.y - 26, 'SYSTEM OFFLINE', '#ff4f4f');
+            explode(e.x, e.y, e.r + 3);
+          }
+          sfx.boom(0.8);
+          e.dead = true; e.arrived = true;
+          continue;
+        }
+      } else { e.tx = BASE.x; e.ty = BASE.y; }
+    }
+    // steering toward aimpoint + weave (+ jam drift)
+    const a = Math.atan2(e.ty - e.y, e.tx - e.x);
+    let wob = Math.sin(e.t * e.wf + e.ph) * e.weave;
+    if (e.jammed) wob += Math.sin(e.t * 13 + e.ph) * 55;
+    const pa = a + Math.PI / 2;
+    e.x += (Math.cos(a) * e.spd + Math.cos(pa) * wob) * sm * dt;
+    e.y += (Math.sin(a) * e.spd + Math.sin(pa) * wob) * sm * dt;
+    e.rot = a;
+    // carrier brood
+    if (e.spawner && e.x > 40) {
+      e.broodT -= dt;
+      if (e.broodT <= 0) {
+        e.broodT = e.spawner;
+        const n = e.boss ? 3 : 2;
+        for (let i = 0; i < n; i++) spawnEnemy('hornet', e.spawnEdge, e.x + rand(-16, 16), e.y + rand(-16, 16));
+        addText(e.x, e.y - e.r - 10, 'SWARM RELEASE', '#ff5cd0');
+      }
+    }
+    // impact on base
+    if (dist(e, BASE) < BASE.r + e.r) {
+      e.dead = true; e.arrived = true;
+      baseHP -= e.dmg;
+      axisLeaks[e.spawnEdge] = (axisLeaks[e.spawnEdge] || 0) + e.dmg;
+      explode(e.x, e.y, e.r + 4);
+      shake = Math.min(1.4, shake + 0.25 + e.dmg / 40);
+      flash = Math.min(1, flash + 0.35 + e.dmg / 100);
+      addText(e.x, e.y - 16, '-' + e.dmg + ' FOB', '#ff4f4f');
+      sfx.baseHit();
+      if (baseHP <= 0) { baseHP = 0; gameOver(false); }
+    }
+  }
+  enemies = enemies.filter(e => !e.dead);
+}
+
+function genCovered(x, y) {
+  if (Math.hypot(x - BASE.x, y - BASE.y) < FOBPWR) return true;
+  for (const t of towers) if (t.k === 'gen' && t.offlineT <= 0 && Math.hypot(x - t.x, y - t.y) < TT.gen.covR) return true;
+  return false;
+}
+function updTowers(dt) {
+  // expeditionary power: drawing systems need FOB-grid or generator coverage
+  const fp = DIFFS[diffKey].fieldPwr;
+  for (const t of towers)
+    t.powered = !fp || TT[t.k].draw === 0 || genCovered(t.x, t.y);
+  // radar buffs (offline/silent radars contribute nothing)
+  for (const t of towers) { t.buffMulOn = 1; t.rofMul = 1; t.optic = false; t.opticMul = 1; }
+  for (const r of towers) if (r.kind === 'radar' && r.offlineT <= 0 && !r.emcon && r.powered)
+    for (const t of towers) if (t !== r && dist(t, r) < r.range)
+      t.buffMulOn = Math.max(t.buffMulOn, r.buffMul);
+  // ORACLE optic coverage: type-priority targeting + fire-control bonus
+  for (const o of towers) if (o.kind === 'optic' && o.offlineT <= 0 && o.powered)
+    for (const t of towers) {
+      if (t === o || dist(t, o) >= o.range) continue;
+      if (t.kind === 'gun' || t.kind === 'sam' || t.kind === 'laser') {
+        t.optic = true;
+        t.opticMul = Math.max(t.opticMul, 1 + o.dmgBuff);
+      }
+    }
+  // Static escort jammers slow fire rates
+  for (const e of enemies) {
+    if (e.dead || !e.aura) continue;
+    for (const t of towers) if (dist(t, e) < e.aura) t.rofMul = 0.5;
+  }
+
+  for (const t of towers) {
+    t.fx = Math.max(0, t.fx - dt); t.dry = Math.max(0, t.dry - dt); t.sndT -= dt;
+    if (t.offlineT > 0) { t.offlineT -= dt; t.firing = false; continue; }
+    if (t.emcon || !t.powered) { t.firing = false; t.tg = null; continue; }
+    if (t.kind === 'gen') continue;
+    const effR = t.range * t.buffMulOn;
+    if (t.kind === 'radar') { t.sw += dt * 1.5; continue; }
+    if (t.kind === 'optic') { t.sw += dt * 0.7; continue; }
+    if (t.kind === 'jam') { t.sw += dt * 2; continue; }
+
+    if (t.kind === 'bay') {
+      if (t.stock < t.cap) { t.rb -= dt; if (t.rb <= 0) { t.stock++; t.rb = t.rebuild; } }
+      if (t.stock > 0 && state === 'combat') {
+        const tg = nearestEnemy(t.x, t.y, effR, true, true);
+        if (tg) {
+          t.stock--; if (t.stock < t.cap && t.rb <= 0) t.rb = t.rebuild;
+          SYS_STATS.falcon.shots++;
+          birds.push({ x: t.x, y: t.y - 8, tg, spd: 140, dmg: t.dmg, life: 7, a: Math.atan2(tg.y - t.y, tg.x - t.x), trail: 0, rearmT: 0 });
+          t.fx = 0.2; sfx.launch();
+        }
+      }
+      continue;
+    }
+
+    // validate / acquire target
+    if (t.tg && (t.tg.dead || !canDetect(t, t.tg, effR))) t.tg = null;
+    if (!t.tg || t.kind === 'gun'
+        || (t.optic && t.prio && t.tg.type !== t.prio)
+        || (t.optic && t.tg.decoy)) {
+      const nt = pickTarget(t, effR);
+      if (nt) t.tg = nt;
+    }
+    if (t.tg) t.aim = Math.atan2(t.tg.y - t.y, t.tg.x - t.x);
+
+    switch (t.kind) {
+      case 'gun': {
+        t.cd -= dt * t.rofMul;
+        if (t.tg && t.cd <= 0) {
+          t.cd = 1 / t.rof;
+          SYS_STATS.vulcan.shots++;
+          const small = t.tg.r <= 8;
+          const pk = clamp(0.8 - (small ? 0.18 : 0) + (t.optic ? 0.15 : 0), 0.1, 0.95);
+          const hit = Math.random() < pk;
+          let ex = t.tg.x + rand(-3, 3), ey = t.tg.y + rand(-3, 3);
+          if (hit) damage(t.tg, t.dmg * t.opticMul, true, 'vulcan');
+          else { // round goes wide — tracer streaks past the target
+            const ov = 14 + rand(0, 18), pa = t.aim + Math.PI / 2, sp = rand(-14, 14) * (small ? 1.2 : 0.8);
+            ex = t.tg.x + Math.cos(t.aim) * ov + Math.cos(pa) * sp;
+            ey = t.tg.y + Math.sin(t.aim) * ov + Math.sin(pa) * sp;
+          }
+          tracers.push({ x1: t.x + Math.cos(t.aim) * 16, y1: t.y + Math.sin(t.aim) * 16,
+            x2: ex, y2: ey, life: 0.06 });
+          t.fx = 0.05;
+          if (t.sndT <= 0) { sfx.shot(); t.sndT = 0.09; }
+        }
+        break;
+      }
+      case 'sam': {
+        t.cd -= dt * t.rofMul;
+        if (t.tg && t.cd <= 0) {
+          if (cash >= t.ammoCost) {
+            cash -= t.ammoCost; addSpend('sam', t.ammoCost);
+            SYS_STATS.sam.shots++;
+            t.cd = t.cdMax; t.fx = 0.25;
+            projs.push({ x: t.x, y: t.y - 6, a: t.aim - 0.5, spd: 120, tg: t.tg,
+              dmg: t.dmg * t.opticMul, aoe: t.aoe, life: 4.5, dead: false });
+            sfx.launch();
+          } else { t.dry = 0.5; }
+        }
+        break;
+      }
+      case 'laser': {
+        if (t.over) {
+          t.heat -= dt * 2.2; t.firing = false;
+          if (t.heat <= 0) { t.heat = 0; t.over = false; }
+          break;
+        }
+        if (t.tg && state === 'combat') {
+          if (t.lastTg !== t.tg) { t.ramp = 0; t.lastTg = t.tg; }
+          t.ramp = Math.min(1, t.ramp + dt / t.rampT);
+          const dps = lerp(t.dpsMin, t.dpsMax, t.ramp) * t.rofMul * t.opticMul;
+          damage(t.tg, dps * dt, false, 'laser');
+          SYS_STATS.laser.shots += dt;
+          t.firing = true; t.heat += dt;
+          if (Math.random() < 0.35) parts.push({ x: t.tg.x + rand(-4, 4), y: t.tg.y + rand(-4, 4),
+            vx: rand(-25, 25), vy: rand(-40, 0), life: 0.25, max: 0.25, size: 1.5, color: '#ffe9a0', drag: 0.95 });
+          if (t.sndT <= 0) { sfx.laser(); t.sndT = 0.14; }
+          if (t.heat >= t.heatMax) { t.over = true; t.firing = false; addText(t.x, t.y - 24, 'OVERHEAT', '#ff9f43'); }
+        } else { t.firing = false; t.ramp = Math.max(0, t.ramp - dt); t.heat = Math.max(0, t.heat - dt * 1.4); }
+        break;
+      }
+      case 'pulse': {
+        t.cd -= dt * t.rofMul;
+        if (t.cd <= 0 && state === 'combat' && nearestEnemy(t.x, t.y, t.range, true, true)) {
+          t.cd = t.cdMax; t.fx = 0.3;
+          SYS_STATS.pulse.shots++;
+          rings.push({ x: t.x, y: t.y, r: 8, max: t.range, life: 0.45, maxLife: 0.45, color: '#5fd8ff', lw: 3 });
+          for (const e of enemies) {
+            if (e.dead || e.alt === 'hi' || dist(t, e) > t.range) continue;
+            damage(e, t.dmg * (e.hardened ? 0.5 : 1), false, 'pulse');
+            if (!e.hardened) e.stunT = Math.max(e.stunT, 0.45);
+          }
+          sfx.zap();
+        }
+        break;
+      }
+    }
+  }
+}
+
+function updProjs(dt) {
+  for (const p of projs) {
+    p.life -= dt;
+    if (p.tg && p.tg.dead) p.tg = nearestEnemy(p.x, p.y, 380);
+    if (p.tg) {
+      const ta = Math.atan2(p.tg.y - p.y, p.tg.x - p.x);
+      let da = ((ta - p.a + Math.PI * 3) % TAU) - Math.PI;
+      p.a += clamp(da, -4.6 * dt, 4.6 * dt);
+    }
+    p.spd = Math.min(460, p.spd + 380 * dt);
+    p.x += Math.cos(p.a) * p.spd * dt;
+    p.y += Math.sin(p.a) * p.spd * dt;
+    p.tr = (p.tr || 0) - dt;
+    if (p.tr <= 0) { smokePuff(p.x, p.y); p.tr = 0.025; }
+    if (p.tg && dist(p, p.tg) < p.tg.r + 8) {
+      let dm = p.dmg;
+      if (Math.random() >= 0.88) { // near miss — proximity fuse, degraded effect
+        const ma = rand(0, TAU), md = rand(14, 24);
+        p.x += Math.cos(ma) * md; p.y += Math.sin(ma) * md;
+        dm = p.dmg * 0.5;
+        addText(p.x, p.y - 10, 'NEAR MISS', '#9fb2c4');
+      }
+      for (const e of enemies) if (!e.dead && Math.hypot(e.x - p.x, e.y - p.y) <= p.aoe + e.r) damage(e, dm, false, 'sam');
+      explode(p.x, p.y, 9); p.dead = true;
+    } else if (p.life <= 0) { explode(p.x, p.y, 5); p.dead = true; }
+  }
+  projs = projs.filter(p => !p.dead);
+}
+
+function updBirds(dt) {
+  for (const b of birds) {
+    b.life -= dt;
+    b.rearmT = Math.max(0, (b.rearmT || 0) - dt);
+    if (!b.tg || b.tg.dead) b.tg = nearestEnemy(b.x, b.y, 340, true, true);
+    if (b.tg) {
+      const ta = Math.atan2(b.tg.y - b.y, b.tg.x - b.x);
+      let da = ((ta - b.a + Math.PI * 3) % TAU) - Math.PI;
+      b.a += clamp(da, -6 * dt, 6 * dt);
+    }
+    b.spd = Math.min(300, b.spd + 260 * dt);
+    b.x += Math.cos(b.a) * b.spd * dt;
+    b.y += Math.sin(b.a) * b.spd * dt;
+    if (b.tg && b.rearmT <= 0 && dist(b, b.tg) < b.tg.r + 7) {
+      if (Math.random() < 0.9) {
+        for (const e of enemies) if (!e.dead && Math.hypot(e.x - b.x, e.y - b.y) <= 20 + e.r) damage(e, b.dmg, false, 'falcon');
+        explode(b.x, b.y, 8); b.dead = true;
+      } else { // overshoot — come around for another pass
+        b.rearmT = 0.55;
+        b.x += Math.cos(b.a) * 26; b.y += Math.sin(b.a) * 26;
+      }
+    } else if (b.life <= 0 || b.x < -40 || b.x > W + 40 || b.y < -40 || b.y > H + 40) b.dead = true;
+  }
+  birds = birds.filter(b => !b.dead);
+}
+
+function updFx(dt) {
+  for (const p of parts) {
+    p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt;
+    p.vx *= p.drag; p.vy *= p.drag;
+    if (p.smoke) p.vy -= 6 * dt;
+  }
+  parts = parts.filter(p => p.life > 0);
+  if (parts.length > 500) parts.splice(0, parts.length - 500);
+  for (const tx of texts) { tx.life -= dt; tx.y -= 24 * dt; }
+  texts = texts.filter(t => t.life > 0);
+  for (const r of rings) { r.life -= dt; r.r = lerp(r.max, 4, r.life / r.maxLife); }
+  rings = rings.filter(r => r.life > 0);
+  for (const tr of tracers) tr.life -= dt;
+  tracers = tracers.filter(t => t.life > 0);
+  shake = Math.max(0, shake - dt * 2.2);
+  flash = Math.max(0, flash - dt * 1.1);
+  waveBanner = Math.max(0, waveBanner - dt);
+}
+
+function updWaves(dt) {
+  if (state !== 'combat') return;
+  for (const q of spawnQ) {
+    if (q.left <= 0) continue;
+    q.t -= dt;
+    while (q.t <= 0 && q.left > 0) { spawnEnemy(q.type, q.edge); q.left--; q.t += q.interval; }
+  }
+  if (enemies.length === 0 && queuedLeft() === 0) {
+    const bonus = 25 + wave * 6;
+    cash += bonus; earned += bonus;
+    addText(BASE.x, BASE.y - 80, 'WAVE CLEAR +' + bonus, '#7dffab');
+    sfx.cash();
+    if (wave === LAST_WAVE && !endless) { gameOver(true); return; }
+    const keep = DIFFS[diffKey].adapt ? DIFFS[diffKey].adapt.decay : 0.5;
+    for (const a of ['left', 'top', 'bottom']) { axisKills[a] *= keep; axisLeaks[a] *= keep; }
+    state = 'build';
+    el('btnWave').disabled = false;
+    prepareNext();
+  }
+}
+
+function aarHTML() {
+  const NAMES = { vulcan: 'VULCAN', sam: 'JAVELIN', laser: 'DAZZLER', pulse: 'PULSE', falcon: 'FALCON' };
+  let rows = '';
+  for (const k in NAMES) {
+    const s = SYS_STATS[k];
+    if (!s || (s.shots === 0 && s.kills === 0 && s.spent === 0)) continue;
+    const shots = k === 'laser' ? Math.round(s.shots) + 's dwell' : Math.round(s.shots) + (k === 'sam' || k === 'falcon' ? ' fired' : ' rds');
+    const cpk = s.kills > 0 ? '$' + Math.round(s.spent / s.kills) + '/kill' : (s.spent > 0 ? fmt$(s.spent) + ' spent' : '—');
+    rows += NAMES[k].padEnd(8, ' ') + shots.padStart(11, ' ') + String(s.kills + ' kills').padStart(11, ' ') + cpk.padStart(12, ' ') + '<br>';
+  }
+  const supSpent = ['jammer', 'radar', 'optic', 'gen'].reduce((a, k) => a + (SYS_STATS[k] ? SYS_STATS[k].spent : 0), 0);
+  if (supSpent > 0) rows += 'SUPPORT '.padEnd(8, ' ') + ('$' + supSpent + ' grid/sensors/EW').padStart(34, ' ') + '<br>';
+  if (repairSpent > 0) rows += 'REPAIRS '.padEnd(8, ' ') + fmt$(repairSpent).padStart(34, ' ') + '<br>';
+  return rows;
+}
+function exchangeGrade() {
+  const r = destroyed / Math.max(1, spent);
+  const g = r >= 1.5 ? 'S' : r >= 1.0 ? 'A' : r >= 0.65 ? 'B' : r >= 0.4 ? 'C' : 'D';
+  return { r, g };
+}
+function gameOver(win) {
+  state = win ? 'won' : 'over';
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const ss = String(Math.floor(elapsed % 60)).padStart(2, '0');
+  const ex = exchangeGrade();
+  el('doneTitle').innerHTML = win ? 'PERIMETER HELD' : '<span class="bad">FOB AEGIS LOST</span>';
+  el('doneMsg').textContent = win ? 'ALL ' + LAST_WAVE + ' WAVES REPELLED — ' + DIFFS[diffKey].name + ' — SECTOR SECURE'
+    : 'PERIMETER BREACHED ON WAVE ' + wave + ' — ' + DIFFS[diffKey].name + (endless ? ' (ENDLESS)' : '');
+  el('doneStats').innerHTML =
+    'WAVES SURVIVED&nbsp;: <span>' + (win ? LAST_WAVE : Math.max(0, wave - 1)) + (endless && !win ? '+' : '') + '</span>' +
+    ' · HOSTILES DOWN: <span>' + kills + '</span> · TIME <span>' + mm + ':' + ss + '</span><br>' +
+    'COST EXCHANGE&nbsp;&nbsp;: <span>$' + destroyed + '</span> downed vs <span>$' + spent + '</span> expended ' +
+    '= <span>' + ex.r.toFixed(2) + ' : 1</span> — GRADE <span style="font-size:15px">' + ex.g + '</span><br>' +
+    '<span style="color:var(--dim)">─── AFTER-ACTION, BY SYSTEM ───</span><br>' + aarHTML();
+  el('btnEndless').style.display = win ? '' : 'none';
+  el('ovDone').classList.remove('hide');
+  showLeaderboard(win);
+  if (win) sfx.cash(); else sfx.boom(2);
+}
+
+function doRepair() {
+  if (state !== 'build' || baseHP >= baseMax || cash < 50) { sfx.deny(); return; }
+  cash -= 50;
+  spent += 50; repairSpent += 50;
+  baseHP = Math.min(baseMax, baseHP + 10);
+  addText(BASE.x, BASE.y - 66, 'REPAIR +10', '#7dffab');
+  sfx.cash();
+}
+
+/* ================= rendering ================= */
+const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
+(function paintBg() {
+  const c = bg.getContext('2d');
+  c.fillStyle = '#060a08'; c.fillRect(0, 0, W, H);
+  // terrain speckle
+  for (let i = 0; i < 260; i++) {
+    c.fillStyle = 'rgba(125,255,171,' + rand(0.01, 0.045) + ')';
+    c.fillRect(rand(0, W), rand(0, H), rand(1, 3), rand(1, 3));
+  }
+  // dirt roads toward the FOB
+  c.strokeStyle = 'rgba(160,150,110,0.06)'; c.lineWidth = 26; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(-20, 200); c.quadraticCurveTo(600, 260, BASE.x, BASE.y); c.stroke();
+  c.beginPath(); c.moveTo(-20, 560); c.quadraticCurveTo(560, 480, BASE.x, BASE.y); c.stroke();
+  // grid
+  c.strokeStyle = 'rgba(125,255,171,0.05)'; c.lineWidth = 1;
+  for (let x = 0; x <= W; x += 40) { c.beginPath(); c.moveTo(x + 0.5, 0); c.lineTo(x + 0.5, H); c.stroke(); }
+  for (let y = 0; y <= H; y += 40) { c.beginPath(); c.moveTo(0, y + 0.5); c.lineTo(W, y + 0.5); c.stroke(); }
+  // western threat axis hatching
+  c.strokeStyle = 'rgba(255,79,79,0.25)'; c.lineWidth = 2;
+  for (let y = 0; y < H; y += 26) { c.beginPath(); c.moveTo(0, y); c.lineTo(12, y + 13); c.stroke(); }
+  c.fillStyle = 'rgba(255,79,79,0.5)'; c.font = '10px IBM Plex Mono';
+  c.save(); c.translate(24, H / 2); c.rotate(-Math.PI / 2);
+  c.textAlign = 'center'; c.fillText('◄ THREAT AXIS WEST ►', 0, 0); c.restore();
+  c.fillStyle = 'rgba(125,255,171,0.28)'; c.textAlign = 'left';
+  c.fillText('GRID 34T-KX 118 · FOB AEGIS AO', 10, 14);
+  c.textAlign = 'right'; c.fillText('C-UAS NET ONLINE', W - 10, H - 10);
+})();
+
+function hexPath(c, x, y, r) {
+  c.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = TAU * i / 6 + Math.PI / 6;
+    const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r;
+    if (i === 0) c.moveTo(px, py); else c.lineTo(px, py);
+  }
+  c.closePath();
+}
+
+function drawBase() {
+  const { x, y, r } = BASE;
+  hexPath(ctx, x, y, r + 6); ctx.fillStyle = '#0d1712'; ctx.fill();
+  ctx.strokeStyle = '#2c4033'; ctx.lineWidth = 3; ctx.stroke();
+  hexPath(ctx, x, y, r - 6); ctx.strokeStyle = 'rgba(125,255,171,0.25)'; ctx.lineWidth = 1; ctx.stroke();
+  // helipad + structures
+  ctx.strokeStyle = '#3f8f5f'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(x - 14, y + 12, 13, 0, TAU); ctx.stroke();
+  ctx.fillStyle = '#3f8f5f'; ctx.font = 'bold 13px IBM Plex Mono'; ctx.textAlign = 'center';
+  ctx.fillText('H', x - 14, y + 17);
+  ctx.fillStyle = '#16241c'; ctx.strokeStyle = '#2c4033'; ctx.lineWidth = 1;
+  ctx.fillRect(x + 2, y - 26, 26, 16); ctx.strokeRect(x + 2, y - 26, 26, 16);
+  ctx.fillRect(x - 30, y - 24, 18, 12); ctx.strokeRect(x - 30, y - 24, 18, 12);
+  // rotating command dish
+  ctx.save(); ctx.translate(x + 15, y + 14); ctx.rotate(time * 1.2);
+  ctx.strokeStyle = '#7dffab'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-7, 0); ctx.lineTo(7, 0); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, 3, 0, TAU); ctx.stroke(); ctx.restore();
+  // damage state
+  const dmgF = 1 - baseHP / baseMax;
+  if (dmgF > 0.02) { hexPath(ctx, x, y, r + 6); ctx.fillStyle = 'rgba(255,60,40,' + (dmgF * 0.25) + ')'; ctx.fill(); }
+  ctx.fillStyle = 'rgba(125,255,171,0.5)'; ctx.font = '10px IBM Plex Mono'; ctx.textAlign = 'center';
+  ctx.fillText('FOB AEGIS', x, y + r + 18);
+}
+
+function rotor(c, px, py, rr, ph) {
+  c.beginPath(); c.arc(px, py, rr, 0, TAU); c.stroke();
+  const a = time * 26 + ph;
+  c.beginPath(); c.moveTo(px + Math.cos(a) * rr, py + Math.sin(a) * rr);
+  c.lineTo(px - Math.cos(a) * rr, py - Math.sin(a) * rr); c.stroke();
+}
+
+function drawBlip(e) {
+  // interference from an escort jammer is detectable even without a track
+  if (e.aura) {
+    ctx.fillStyle = 'rgba(92,157,255,0.045)';
+    ctx.beginPath(); ctx.arc(e.x, e.y, e.aura, 0, TAU); ctx.fill();
+  }
+  const jx = Math.sin(time * 7 + e.ph) * 3.5, jy = Math.cos(time * 9 + e.ph) * 3.5;
+  const a = 0.3 + 0.28 * Math.sin(time * 5 + e.ph);
+  const x = e.x + jx, y = e.y + jy, s = 6;
+  ctx.strokeStyle = 'rgba(159,178,196,' + a.toFixed(2) + ')'; ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(x, y - s); ctx.lineTo(x + s, y); ctx.lineTo(x, y + s); ctx.lineTo(x - s, y); ctx.closePath();
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(159,178,196,' + (a * 0.9).toFixed(2) + ')';
+  ctx.font = '9px IBM Plex Mono'; ctx.textAlign = 'center';
+  ctx.fillText('?', x, y + 3);
+}
+
+function drawEnemy(e) {
+  // Static escort-jammer bubble
+  if (e.aura) {
+    ctx.fillStyle = 'rgba(92,157,255,0.06)';
+    ctx.beginPath(); ctx.arc(e.x, e.y, e.aura, 0, TAU); ctx.fill();
+    ctx.setLineDash([5, 7]); ctx.strokeStyle = 'rgba(92,157,255,0.35)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(e.x, e.y, e.aura, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+  }
+  // Wasp attack vector toward its emitter target
+  if (e.sead && e.tw) {
+    ctx.setLineDash([3, 6]); ctx.strokeStyle = 'rgba(184,255,92,0.3)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.tw.x, e.tw.y); ctx.stroke(); ctx.setLineDash([]);
+  }
+  // fiber-optic tail for hardened
+  if (e.hardened) {
+    ctx.strokeStyle = 'rgba(255,159,67,0.55)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(e.x - Math.cos(e.rot) * e.r * 1.3, e.y - Math.sin(e.rot) * e.r * 1.3);
+    ctx.lineTo(e.x - Math.cos(e.rot) * (e.r * 1.3 + 16), e.y - Math.sin(e.rot) * (e.r * 1.3 + 16)); ctx.stroke();
+  }
+  ctx.save();
+  let jx = 0, jy = 0;
+  if (e.jammed) { jx = rand(-1.6, 1.6); jy = rand(-1.6, 1.6); }
+  ctx.translate(e.x + jx, e.y + jy);
+  if (e.stealth) ctx.globalAlpha = e.revealT > 0 ? 0.95 : 0.42;
+  ctx.strokeStyle = e.color; ctx.fillStyle = '#121a15'; ctx.lineWidth = 1.6;
+  if (e.kind === 'quad') {
+    ctx.rotate(e.rot + Math.PI / 4);
+    ctx.beginPath(); ctx.moveTo(-e.r, -e.r); ctx.lineTo(e.r, e.r);
+    ctx.moveTo(-e.r, e.r); ctx.lineTo(e.r, -e.r); ctx.stroke();
+    ctx.lineWidth = 1;
+    rotor(ctx, -e.r, -e.r, e.r * 0.55, e.ph);
+    rotor(ctx, e.r, -e.r, e.r * 0.55, e.ph + 2);
+    rotor(ctx, -e.r, e.r, e.r * 0.55, e.ph + 4);
+    rotor(ctx, e.r, e.r, e.r * 0.55, e.ph + 1);
+    ctx.fillStyle = e.color; ctx.fillRect(-2.5, -2.5, 5, 5);
+  } else if (e.kind === 'wing') {
+    ctx.rotate(e.rot);
+    const s = e.boss ? 1.15 : 1;
+    if (e.decoy) ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(e.r * 1.5 * s, 0); ctx.lineTo(-e.r * s, e.r * 0.9 * s);
+    ctx.lineTo(-e.r * 0.5 * s, 0); ctx.lineTo(-e.r * s, -e.r * 0.9 * s);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = e.boss ? '#ff8080' : '#5fd8ff';
+    ctx.beginPath(); ctx.arc(e.r * 0.45, 0, 1.8, 0, TAU); ctx.fill();
+    if (e.boss) {
+      ctx.fillStyle = 'rgba(255,120,60,' + (0.5 + 0.4 * Math.sin(time * 9)) + ')';
+      ctx.beginPath(); ctx.arc(-e.r, e.r * 0.4, 3, 0, TAU); ctx.arc(-e.r, -e.r * 0.4, 3, 0, TAU); ctx.fill();
+    }
+  } else { // hexa
+    ctx.rotate(e.rot);
+    hexPath(ctx, 0, 0, e.r); ctx.fill(); ctx.stroke();
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 6; i++) {
+      const a = TAU * i / 6 + Math.PI / 6;
+      rotor(ctx, Math.cos(a) * e.r, Math.sin(a) * e.r, e.r * 0.38, e.ph + i);
+    }
+    ctx.fillStyle = e.color; ctx.beginPath(); ctx.arc(0, 0, e.r * 0.3, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+  // status glyphs
+  if (e.jammed) {
+    ctx.strokeStyle = '#ffe14f'; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(e.x - 3, e.y - e.r - 12); ctx.lineTo(e.x + 1, e.y - e.r - 8);
+    ctx.lineTo(e.x - 1, e.y - e.r - 6); ctx.lineTo(e.x + 3, e.y - e.r - 2); ctx.stroke();
+  }
+  if (e.stunT > 0) { ctx.strokeStyle = 'rgba(95,216,255,0.8)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 5, 0, TAU); ctx.stroke(); }
+  if (e.stealth && e.revealT > 0) {
+    ctx.strokeStyle = 'rgba(95,216,255,0.9)'; ctx.lineWidth = 1.2; const b = e.r + 6;
+    ctx.beginPath();
+    ctx.moveTo(e.x - b, e.y - b + 5); ctx.lineTo(e.x - b, e.y - b); ctx.lineTo(e.x - b + 5, e.y - b);
+    ctx.moveTo(e.x + b - 5, e.y - b); ctx.lineTo(e.x + b, e.y - b); ctx.lineTo(e.x + b, e.y - b + 5);
+    ctx.moveTo(e.x + b, e.y + b - 5); ctx.lineTo(e.x + b, e.y + b); ctx.lineTo(e.x + b - 5, e.y + b);
+    ctx.moveTo(e.x - b + 5, e.y + b); ctx.lineTo(e.x - b, e.y + b); ctx.lineTo(e.x - b, e.y + b - 5);
+    ctx.stroke();
+  }
+  // hp bar
+  if (e.hp < e.max) {
+    const w = Math.max(16, e.r * 2.2), f = clamp(e.hp / e.max, 0, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(e.x - w / 2, e.y - e.r - 8, w, 3);
+    ctx.fillStyle = f > 0.5 ? '#7dffab' : f > 0.25 ? '#ffb454' : '#ff4f4f';
+    ctx.fillRect(e.x - w / 2, e.y - e.r - 8, w * f, 3);
+  }
+  if (e.boss) {
+    ctx.fillStyle = '#ff4f4f'; ctx.font = 'bold 11px IBM Plex Mono'; ctx.textAlign = 'center';
+    ctx.fillText('KRAKEN', e.x, e.y - e.r - 14);
+  }
+  if (e.alt === 'hi') {
+    ctx.fillStyle = 'rgba(216,199,255,0.85)'; ctx.font = 'bold 9px IBM Plex Mono'; ctx.textAlign = 'center';
+    ctx.fillText('▲HI', e.x, e.y - e.r - (e.hp < e.max ? 13 : 6));
+  }
+  if (e.decoy && e.hp < e.max) {
+    ctx.fillStyle = 'rgba(227,210,113,0.8)'; ctx.font = '9px IBM Plex Mono'; ctx.textAlign = 'center';
+    ctx.fillText('DECOY?', e.x, e.y + e.r + 12);
+  }
+}
+
+function drawTower(t, isSel) {
+  const effR = t.range * t.buffMulOn;
+  if ((isSel || t === hoverT) && t.range > 0) {
+    ctx.fillStyle = 'rgba(125,255,171,0.045)';
+    ctx.beginPath(); ctx.arc(t.x, t.y, effR, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(125,255,171,' + (isSel ? 0.55 : 0.3) + ')'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(t.x, t.y, effR, 0, TAU); ctx.stroke();
+    if (t.kind === 'gun' || t.kind === 'sam' || t.kind === 'laser') {
+      ctx.setLineDash([4, 5]); ctx.strokeStyle = 'rgba(159,178,196,0.3)';
+      ctx.beginPath(); ctx.arc(t.x, t.y, effR * 0.55, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+    }
+    if (t.kind === 'sam') { // minimum engagement range dead zone
+      ctx.setLineDash([3, 4]); ctx.strokeStyle = 'rgba(255,79,79,0.45)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(t.x, t.y, TT.sam.minR, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(255,79,79,0.04)';
+      ctx.beginPath(); ctx.arc(t.x, t.y, TT.sam.minR, 0, TAU); ctx.fill();
+    }
+  }
+  // pad
+  ctx.fillStyle = '#101a15'; ctx.strokeStyle = '#2c4033'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(t.x, t.y, 15, 0, TAU); ctx.fill(); ctx.stroke();
+  if (t.buffMulOn > 1) { // datalinked chevron
+    ctx.strokeStyle = '#5fd8ff'; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(t.x - 4, t.y - 19); ctx.lineTo(t.x, t.y - 23); ctx.lineTo(t.x + 4, t.y - 19); ctx.stroke();
+  }
+  if (t.optic) { // optic-linked diamond
+    ctx.strokeStyle = '#ffd9a0'; ctx.lineWidth = 1.3;
+    const dx = t.buffMulOn > 1 ? t.x + 9 : t.x;
+    ctx.beginPath(); ctx.moveTo(dx, t.y - 24); ctx.lineTo(dx + 3.5, t.y - 20.5);
+    ctx.lineTo(dx, t.y - 17); ctx.lineTo(dx - 3.5, t.y - 20.5); ctx.closePath(); ctx.stroke();
+  }
+  ctx.save(); ctx.translate(t.x, t.y);
+  switch (t.kind) {
+    case 'gun': {
+      ctx.rotate(t.aim);
+      ctx.fillStyle = '#22352a'; ctx.fillRect(-7, -7, 14, 14);
+      ctx.strokeStyle = '#7dffab'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(4, -3); ctx.lineTo(19, -3); ctx.moveTo(4, 3); ctx.lineTo(19, 3); ctx.stroke();
+      if (t.fx > 0) { ctx.fillStyle = '#ffe9a0'; ctx.beginPath();
+        ctx.moveTo(20, -4); ctx.lineTo(27 + rand(0, 4), 0); ctx.lineTo(20, 4); ctx.closePath(); ctx.fill(); }
+      break;
+    }
+    case 'sam': {
+      ctx.rotate(t.aim);
+      ctx.fillStyle = '#22352a'; ctx.fillRect(-9, -8, 20, 16);
+      ctx.strokeStyle = '#7dffab'; ctx.lineWidth = 1;
+      ctx.strokeRect(-9, -8, 20, 16);
+      ctx.fillStyle = '#0c1310';
+      [[-2, -4], [6, -4], [-2, 4], [6, 4]].forEach(p => {
+        ctx.beginPath(); ctx.arc(p[0], p[1], 2.6, 0, TAU); ctx.fill(); ctx.stroke();
+      });
+      break;
+    }
+    case 'laser': {
+      ctx.rotate(t.aim);
+      ctx.fillStyle = '#22352a'; ctx.beginPath(); ctx.arc(0, 0, 8, 0, TAU); ctx.fill();
+      ctx.strokeStyle = t.over ? '#ff4f4f' : '#ffe9a0'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(2, 0); ctx.lineTo(15, 0); ctx.stroke();
+      break;
+    }
+    case 'pulse': {
+      ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = '#22352a'; ctx.fillRect(-8, -8, 16, 16);
+      ctx.strokeStyle = '#5fd8ff'; ctx.lineWidth = 1; ctx.strokeRect(-8, -8, 16, 16);
+      ctx.strokeRect(-4, -4, 8, 8);
+      break;
+    }
+    case 'jam': {
+      ctx.strokeStyle = '#7dffab'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(0, 8); ctx.lineTo(0, -10); ctx.stroke();
+      ctx.lineWidth = 1.2;
+      for (let i = 1; i <= 3; i++) {
+        const ph = (time * 1.5 + i * 0.5) % 1.5;
+        if (ph < 1) { ctx.globalAlpha = 1 - ph;
+          ctx.beginPath(); ctx.arc(0, -10, 4 + ph * 9, -1.1, 1.1); ctx.stroke(); }
+      }
+      ctx.globalAlpha = 1;
+      break;
+    }
+    case 'bay': {
+      ctx.strokeStyle = '#5fd8ff'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(0, 0, 10, 0, TAU); ctx.stroke();
+      ctx.font = 'bold 11px IBM Plex Mono'; ctx.fillStyle = '#5fd8ff'; ctx.textAlign = 'center';
+      ctx.fillText('▲', 0, 4);
+      break;
+    }
+    case 'radar': {
+      ctx.strokeStyle = '#5fd8ff'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(0, 8); ctx.lineTo(0, -4); ctx.stroke();
+      ctx.save(); ctx.translate(0, -6); ctx.rotate(t.sw * 2);
+      ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(8, 0); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, 2, 0, TAU); ctx.stroke(); ctx.restore();
+      break;
+    }
+    case 'optic': {
+      ctx.strokeStyle = '#ffd9a0'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(0, 9); ctx.lineTo(0, -2); ctx.stroke();
+      ctx.save(); ctx.translate(0, -5);
+      ctx.fillStyle = '#22352a';
+      ctx.beginPath(); ctx.arc(0, 0, 6, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#ffd9a0'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(0, 0, 6, 0, TAU); ctx.stroke();
+      ctx.rotate(Math.sin(t.sw) * 1.1); // scanning lens
+      ctx.fillStyle = '#ffd9a0';
+      ctx.beginPath(); ctx.arc(3.2, 0, 1.8, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,217,160,0.35)';
+      ctx.beginPath(); ctx.moveTo(4, 0); ctx.lineTo(13, -3); ctx.moveTo(4, 0); ctx.lineTo(13, 3); ctx.stroke();
+      ctx.restore();
+      break;
+    }
+    case 'gen': {
+      ctx.fillStyle = '#22352a'; ctx.fillRect(-8, -8, 16, 16);
+      ctx.strokeStyle = '#ffb454'; ctx.lineWidth = 1; ctx.strokeRect(-8, -8, 16, 16);
+      ctx.lineWidth = 1.8; // lightning bolt
+      ctx.beginPath(); ctx.moveTo(2, -6); ctx.lineTo(-3, 1); ctx.lineTo(1, 1); ctx.lineTo(-2, 7); ctx.stroke();
+      const hum = 0.35 + 0.15 * Math.sin(time * 6 + t.sw);
+      ctx.strokeStyle = 'rgba(255,180,84,' + hum + ')';
+      ctx.lineWidth = 1; ctx.strokeRect(-11, -11, 22, 22);
+      if (DIFFS[diffKey].fieldPwr) { // structural integrity pips
+        for (let i = 0; i < 3; i++) {
+          ctx.fillStyle = i < t.struct ? '#ffb454' : 'rgba(255,180,84,0.18)';
+          ctx.fillRect(-8 + i * 6, 12, 4, 3);
+        }
+      }
+      break;
+    }
+  }
+  ctx.restore();
+  // SEAD strike: system offline
+  if (t.offlineT > 0) {
+    ctx.fillStyle = 'rgba(6,10,8,0.62)';
+    ctx.beginPath(); ctx.arc(t.x, t.y, 16, 0, TAU); ctx.fill();
+    if (Math.sin(time * 8) > -0.3) {
+      ctx.strokeStyle = '#ff4f4f'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(t.x - 7, t.y - 7); ctx.lineTo(t.x + 7, t.y + 7);
+      ctx.moveTo(t.x + 7, t.y - 7); ctx.lineTo(t.x - 7, t.y + 7); ctx.stroke();
+      ctx.fillStyle = '#ff4f4f'; ctx.font = 'bold 9px IBM Plex Mono'; ctx.textAlign = 'center';
+      ctx.fillText('OFFLINE ' + Math.ceil(t.offlineT), t.x, t.y - 22);
+    }
+  }
+  // level pips
+  ctx.fillStyle = '#ffb454';
+  for (let i = 0; i < t.level; i++) ctx.fillRect(t.x - 7 + i * 5, t.y + 18, 3, 3);
+  // heat / stock / dry indicators
+  if (t.kind === 'laser') {
+    const f = clamp(t.heat / t.heatMax, 0, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(t.x - 13, t.y + 24, 26, 3);
+    ctx.fillStyle = t.over ? '#ff4f4f' : '#ffb454'; ctx.fillRect(t.x - 13, t.y + 24, 26 * f, 3);
+  }
+  if (t.kind === 'bay') {
+    for (let i = 0; i < t.cap; i++) {
+      ctx.fillStyle = i < t.stock ? '#5fd8ff' : 'rgba(95,216,255,0.2)';
+      ctx.fillRect(t.x - 8 + i * 7, t.y + 24, 5, 3);
+    }
+  }
+  if (t.kind === 'sam' && t.dry > 0 && Math.sin(time * 20) > 0) {
+    ctx.fillStyle = '#ffb454'; ctx.font = 'bold 11px IBM Plex Mono'; ctx.textAlign = 'center';
+    ctx.fillText('NO $', t.x, t.y - 22);
+  }
+  // expeditionary power: disconnected system
+  if (!t.powered && t.offlineT <= 0 && !t.emcon) {
+    ctx.fillStyle = 'rgba(6,10,8,0.6)';
+    ctx.beginPath(); ctx.arc(t.x, t.y, 16, 0, TAU); ctx.fill();
+    if (Math.sin(time * 6) > -0.2) {
+      ctx.fillStyle = '#ffb454'; ctx.font = 'bold 9px IBM Plex Mono'; ctx.textAlign = 'center';
+      ctx.fillText('⚡ NO PWR', t.x, t.y - 22);
+    }
+  }
+  // EMCON: emitter gone silent
+  if (t.emcon && t.offlineT <= 0) {
+    ctx.fillStyle = 'rgba(6,10,8,0.5)';
+    ctx.beginPath(); ctx.arc(t.x, t.y, 16, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(95,216,255,0.75)'; ctx.lineWidth = 1.3;
+    ctx.beginPath(); ctx.arc(t.x, t.y - 21, 4, 0.6, TAU - 0.6); ctx.stroke();
+    ctx.fillStyle = 'rgba(95,216,255,0.75)'; ctx.font = '8px IBM Plex Mono'; ctx.textAlign = 'center';
+    ctx.fillText('SILENT', t.x, t.y + 30);
+  }
+  // laser beam
+  if (t.kind === 'laser' && t.firing && t.tg && !t.tg.dead) {
+    const mx = t.x + Math.cos(t.aim) * 15, my = t.y + Math.sin(t.aim) * 15;
+    const ex = t.tg.x + rand(-1.5, 1.5), ey = t.tg.y + rand(-1.5, 1.5);
+    ctx.strokeStyle = 'rgba(255,90,60,' + (0.25 + 0.3 * t.ramp) + ')'; ctx.lineWidth = 4.5;
+    ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.strokeStyle = '#ffe9a0'; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(ex, ey); ctx.stroke();
+  }
+}
+
+function drawAuras() {
+  if (DIFFS[diffKey].fieldPwr) {
+    // expeditionary grid reach
+    ctx.setLineDash([8, 6]); ctx.strokeStyle = 'rgba(255,180,84,0.18)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(BASE.x, BASE.y, FOBPWR, 0, TAU); ctx.stroke();
+    for (const t of towers) if (t.k === 'gen' && t.offlineT <= 0) {
+      ctx.strokeStyle = 'rgba(255,180,84,0.22)';
+      ctx.beginPath(); ctx.arc(t.x, t.y, TT.gen.covR, 0, TAU); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,180,84,0.02)';
+      ctx.beginPath(); ctx.arc(t.x, t.y, TT.gen.covR, 0, TAU); ctx.fill();
+    }
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,180,84,0.35)'; ctx.font = '9px IBM Plex Mono'; ctx.textAlign = 'center';
+    ctx.fillText('GRID LIMIT', BASE.x, BASE.y - FOBPWR + 14);
+  }
+  // FOB organic sensor limit
+  ctx.setLineDash([2, 10]); ctx.strokeStyle = 'rgba(125,255,171,0.14)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(BASE.x, BASE.y, BASE.sense, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(125,255,171,0.35)'; ctx.font = '9px IBM Plex Mono'; ctx.textAlign = 'center';
+  ctx.fillText('ORGANIC SENSOR LIMIT', BASE.x - BASE.sense + 4, BASE.y - 8);
+  for (const t of towers) {
+    if (t.offlineT > 0 || t.emcon) continue;
+    if (t.kind === 'jam') {
+      ctx.setLineDash([6, 6]); ctx.strokeStyle = 'rgba(125,255,171,0.22)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(t.x, t.y, t.range * t.buffMulOn, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(125,255,171,0.025)';
+      ctx.beginPath(); ctx.arc(t.x, t.y, t.range * t.buffMulOn, 0, TAU); ctx.fill();
+    } else if (t.kind === 'optic') {
+      ctx.setLineDash([2, 7]); ctx.strokeStyle = 'rgba(255,217,160,0.22)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(t.x, t.y, t.range, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+    } else if (t.kind === 'radar') {
+      ctx.strokeStyle = 'rgba(95,216,255,0.16)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(t.x, t.y, t.range, 0, TAU); ctx.stroke();
+      ctx.fillStyle = 'rgba(95,216,255,0.06)';
+      ctx.beginPath(); ctx.moveTo(t.x, t.y); ctx.arc(t.x, t.y, t.range, t.sw, t.sw + 0.55); ctx.closePath(); ctx.fill();
+    }
+  }
+}
+
+function validPlace(x, y) {
+  if (x < 24 || x > W - 24 || y < 24 || y > H - 24) return false;
+  if (Math.hypot(x - BASE.x, y - BASE.y) < BASE.r + 38) return false;
+  for (const t of towers) if (Math.hypot(x - t.x, y - t.y) < 34) return false;
+  return true;
+}
+
+function render() {
+  ctx.save();
+  if (shake > 0) ctx.translate(rand(-1, 1) * shake * 6, rand(-1, 1) * shake * 6);
+  ctx.drawImage(bg, 0, 0);
+  drawAuras();
+  drawBase();
+  // shadows (confirmed tracks only; high-altitude craft cast small, distant shadows)
+  for (const e of enemies) {
+    if (e.revealT <= 0) continue;
+    const hi = e.alt === 'hi';
+    ctx.fillStyle = hi ? 'rgba(0,0,0,0.16)' : 'rgba(0,0,0,0.32)';
+    const ox = hi ? 16 : 7, oy = hi ? 26 : 12, sc = hi ? 0.7 : 1;
+    ctx.beginPath(); ctx.ellipse(e.x + ox, e.y + oy, e.r * 1.1 * sc, e.r * 0.5 * sc, 0, 0, TAU); ctx.fill();
+  }
+  for (const t of towers) drawTower(t, t === sel);
+  for (const e of enemies) {
+    if (e.revealT > 0) drawEnemy(e);
+    else drawBlip(e);
+  }
+  // interceptors
+  for (const b of birds) {
+    ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.a);
+    ctx.fillStyle = '#5fd8ff'; ctx.beginPath();
+    ctx.moveTo(7, 0); ctx.lineTo(-5, 4); ctx.lineTo(-3, 0); ctx.lineTo(-5, -4); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  // missiles
+  for (const p of projs) {
+    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a);
+    ctx.fillStyle = '#e8efe8'; ctx.fillRect(-5, -1.5, 10, 3);
+    ctx.fillStyle = '#ffb454'; ctx.beginPath();
+    ctx.moveTo(5, -1.5); ctx.lineTo(8, 0); ctx.lineTo(5, 1.5); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255,180,80,' + rand(0.5, 0.9) + ')';
+    ctx.beginPath(); ctx.moveTo(-5, -2); ctx.lineTo(-10 - rand(0, 4), 0); ctx.lineTo(-5, 2); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  // tracers, rings, particles, texts
+  for (const tr of tracers) {
+    ctx.strokeStyle = 'rgba(255,233,160,' + (tr.life / 0.06) * 0.9 + ')'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(tr.x1, tr.y1); ctx.lineTo(tr.x2, tr.y2); ctx.stroke();
+  }
+  for (const r of rings) {
+    ctx.strokeStyle = r.color; ctx.globalAlpha = clamp(r.life / r.maxLife, 0, 1); ctx.lineWidth = r.lw;
+    ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  for (const p of parts) {
+    ctx.globalAlpha = clamp(p.life / p.max, 0, 1) * (p.smoke ? 0.45 : 1);
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, TAU); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.font = 'bold 12px IBM Plex Mono'; ctx.textAlign = 'center';
+  for (const tx of texts) {
+    ctx.globalAlpha = clamp(tx.life, 0, 1);
+    ctx.fillStyle = '#060a08'; ctx.fillText(tx.txt, tx.x + 1, tx.y + 1);
+    ctx.fillStyle = tx.color; ctx.fillText(tx.txt, tx.x, tx.y);
+  }
+  ctx.globalAlpha = 1;
+  // placement ghost
+  if (placing && mouse.in) {
+    const d = TT[placing];
+    const noPwr = d.draw > 0 && powerUsed() + d.draw > powerCap();
+    const noCov = DIFFS[diffKey].fieldPwr && d.draw > 0 && !genCovered(mouse.x, mouse.y);
+    const ok = validPlace(mouse.x, mouse.y) && cash >= d.cost && !noPwr && !noCov;
+    const col = ok ? 'rgba(125,255,171,' : 'rgba(255,79,79,';
+    ctx.fillStyle = col + '0.06)'; ctx.strokeStyle = col + '0.6)'; ctx.lineWidth = 1;
+    if (d.range > 0) { ctx.beginPath(); ctx.arc(mouse.x, mouse.y, d.range, 0, TAU); ctx.fill(); ctx.stroke(); }
+    ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 15, 0, TAU); ctx.stroke();
+    ctx.fillStyle = col + '0.9)'; ctx.font = 'bold 11px IBM Plex Mono'; ctx.textAlign = 'center';
+    let label = d.name + ' ' + fmt$(d.cost) + (d.draw ? ' ⚡' + d.draw : ' +' + d.pwr + '⚡');
+    if (noPwr) label = 'INSUFFICIENT POWER — BUILD GENERATOR';
+    if (noCov) label = 'OUTSIDE GRID COVERAGE — EXTEND WITH A GENERATOR';
+    if (placing === 'gen' && DIFFS[diffKey].fieldPwr) {
+      ctx.setLineDash([4, 6]); ctx.strokeStyle = col + '0.4)';
+      ctx.beginPath(); ctx.arc(mouse.x, mouse.y, TT.gen.covR, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+    }
+    ctx.fillText(label, mouse.x, mouse.y - 24);
+  }
+  ctx.restore();
+  // banner / flash / pause
+  if (waveBanner > 0) {
+    ctx.globalAlpha = clamp(waveBanner, 0, 1);
+    ctx.fillStyle = '#7dffab'; ctx.font = '700 42px Rajdhani, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('— WAVE ' + wave + ' —', W / 2, 90);
+    ctx.globalAlpha = 1;
+  }
+  if (flash > 0) {
+    ctx.fillStyle = 'rgba(255,60,50,' + flash * 0.14 + ')'; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(255,60,50,' + flash * 0.5 + ')'; ctx.lineWidth = 14;
+    ctx.strokeRect(7, 7, W - 14, H - 14);
+  }
+  if (paused && (state === 'combat' || state === 'build')) {
+    ctx.fillStyle = 'rgba(4,7,6,0.45)'; ctx.fillRect(0, 0, W, H);
+  }
+}
+
+/* ================= UI ================= */
+/* ================= command-net leaderboard ================= */
+const LB = (() => {
+  let mode = null, mem = {};
+  function detect() {
+    if (mode) return mode;
+    if (NET.firebaseUrl) mode = 'firebase';
+    else if (window.storage && window.storage.get) mode = 'artifact';
+    else {
+      try { localStorage.setItem('_ipx', '1'); localStorage.removeItem('_ipx'); mode = 'local'; }
+      catch (e) { mode = 'memory'; }
+    }
+    return mode;
+  }
+  function label() {
+    const m = detect();
+    return m === 'firebase' ? 'GLOBAL · COMMAND NET' : m === 'artifact' ? 'GLOBAL · SHARED NET'
+      : m === 'local' ? 'THIS DEVICE ONLY' : 'THIS SESSION ONLY';
+  }
+  const key = d => 'lb_' + d;
+  async function load(diff) {
+    const m = detect();
+    try {
+      if (m === 'firebase') {
+        const r = await fetch(NET.firebaseUrl.replace(/\/$/, '') + '/lb/' + diff + '.json');
+        const j = await r.json();
+        return Array.isArray(j) ? j : [];
+      }
+      if (m === 'artifact') {
+        try {
+          const r = await window.storage.get(key(diff), true);
+          return r && r.value ? JSON.parse(r.value) : [];
+        } catch (e) { return []; } // missing key throws
+      }
+      if (m === 'local') {
+        const s = localStorage.getItem(key(diff));
+        return s ? JSON.parse(s) : [];
+      }
+      return mem[diff] || [];
+    } catch (e) { throw new Error('net'); }
+  }
+  async function save(diff, arr) {
+    const m = detect();
+    if (m === 'firebase') {
+      await fetch(NET.firebaseUrl.replace(/\/$/, '') + '/lb/' + diff + '.json',
+        { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(arr) });
+    } else if (m === 'artifact') {
+      await window.storage.set(key(diff), JSON.stringify(arr), true);
+    } else if (m === 'local') {
+      localStorage.setItem(key(diff), JSON.stringify(arr));
+    } else mem[diff] = arr;
+  }
+  return { load, save, label, detect };
+})();
+
+function sanitizeCallsign(s) {
+  s = (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+  return s.length ? s.padEnd(4, '·') : 'ANON';
+}
+function insertScore(board, e) {
+  return [...board, e]
+    .sort((a, b) => b.x - a.x || b.w - a.w || a.t - b.t)
+    .slice(0, 5);
+}
+function scoreRank(board, e) { // 1-based rank it would take, or 0 if it misses the board
+  const merged = insertScore(board, e);
+  const i = merged.indexOf(e);
+  return i >= 0 ? i + 1 : 0;
+}
+const LB_MIN_WAVE = 5;
+let lbEntryPending = null;
+function lbRowsHTML(board, hl) {
+  if (!board.length) return 'NO SCORES POSTED — BE FIRST ON THE NET.';
+  return board.map((e, i) => {
+    const row = (i + 1) + '. ' + e.n.padEnd(5, ' ') + ('X ' + Number(e.x).toFixed(2)).padStart(8, ' ')
+      + ('W' + e.w).padStart(5, ' ') + (e.k + ' kills').padStart(11, ' ');
+    return e === hl ? '<span class="lbme">' + row + ' ◄</span>' : row;
+  }).join('\n');
+}
+async function showLeaderboard(win) {
+  const ex = exchangeGrade();
+  const wavesDone = win ? LAST_WAVE : Math.max(0, wave - (state === 'over' ? 0 : 0));
+  el('lbTitle').textContent = 'TOP 5 X-RATE — ' + DIFFS[diffKey].name + ' · ' + LB.label();
+  el('lbRows').textContent = 'CONTACTING COMMAND NET…';
+  el('lbEntry').style.display = 'none';
+  lbEntryPending = null;
+  let board;
+  try { board = await LB.load(diffKey); }
+  catch (e) { el('lbRows').textContent = 'COMMAND NET UNREACHABLE — score not posted.'; return; }
+  if (state !== 'over' && state !== 'won') return; // player already moved on
+  const entry = { n: 'YOU', x: Math.round(ex.r * 100) / 100, w: wave, k: kills, t: Date.now() };
+  const qualified = wave >= LB_MIN_WAVE;
+  const rank = qualified ? scoreRank(board, entry) : 0;
+  el('lbRows').innerHTML = lbRowsHTML(board, null) +
+    (qualified ? '' : '\n<span style="color:var(--dim)">(reach wave ' + LB_MIN_WAVE + ' to qualify for the net)</span>');
+  if (rank) {
+    lbEntryPending = entry;
+    el('lbRank').textContent = '#' + rank;
+    el('lbEntry').style.display = 'flex';
+    el('lbName').value = '';
+    setTimeout(() => el('lbName').focus(), 50);
+  }
+}
+async function submitScore() {
+  if (!lbEntryPending) return;
+  const e = lbEntryPending; lbEntryPending = null;
+  e.n = sanitizeCallsign(el('lbName').value);
+  el('lbEntry').style.display = 'none';
+  el('lbRows').textContent = 'POSTING TO COMMAND NET…';
+  try {
+    const fresh = await LB.load(diffKey);   // re-read: someone may have posted meanwhile
+    const board = insertScore(fresh, e);
+    await LB.save(diffKey, board);
+    el('lbRows').innerHTML = lbRowsHTML(board, board.includes(e) ? e : null) +
+      (board.includes(e) ? '' : '\n<span style="color:var(--dim)">(bumped off while posting — the net is competitive)</span>');
+    sfx.cash();
+  } catch (err) {
+    el('lbRows').textContent = 'COMMAND NET UNREACHABLE — score not posted.';
+  }
+}
+
+const MODES = { near: 'NEAREST', first: 'CLOSEST TO FOB', strong: 'STRONGEST', weak: 'WEAKEST' };
+const MODE_ORDER = ['near', 'first', 'strong', 'weak'];
+
+/* ================= checkpoint codec ================= */
+const EKEYS = Object.keys(ETYPES);
+const B62 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+function b62enc(big) {
+  if (big === 0n) return '0';
+  let s = '';
+  while (big > 0n) { s = B62[Number(big % 62n)] + s; big /= 62n; }
+  return s;
+}
+function b62dec(str) {
+  let v = 0n;
+  for (const ch of str) {
+    const i = B62.indexOf(ch);
+    if (i < 0) throw new Error('char');
+    v = v * 62n + BigInt(i);
+  }
+  return v;
+}
+function cksum(s) {
+  let h = 7;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 3844;
+  return B62[Math.floor(h / 62)] + B62[h % 62];
+}
+function encodeSave() {
+  let v = 0n, sh = 0n;
+  const put = (val, w) => {
+    const m = (1 << w) - 1;
+    v |= BigInt(Math.max(0, Math.min(m, Math.round(val)))) << sh;
+    sh += BigInt(w);
+  };
+  put(DKEYS.indexOf(diffKey), 2);
+  put(endless ? 1 : 0, 1);
+  put(wave, 8);
+  put(cash, 20);
+  put(Math.max(0, Math.round(baseHP)), 7);
+  put(kills, 16);
+  put(earned, 20);
+  put(Math.floor(elapsed), 17);
+  put(spent, 20);
+  put(destroyed, 20);
+  for (const a of ['left', 'top', 'bottom']) { put(axisKills[a] / 8, 8); put(axisLeaks[a] / 8, 8); }
+  put(intelBoost ? 1 : 0, 1);
+  put(towers.length, 7);
+  for (const t of towers) {
+    put(TKEYS.indexOf(t.k), 4);
+    put(t.level - 1, 2);
+    put(MODE_ORDER.indexOf(t.mode), 2);
+    put(t.prio ? EKEYS.indexOf(t.prio) + 1 : 0, 4);
+    put(t.emcon ? 1 : 0, 1);
+    put(t.k === 'gen' ? t.struct - 1 : 0, 2);
+    put(t.x / 4, 9);
+    put(t.y / 4, 8);
+  }
+  const payload = b62enc(v);
+  return 'IP6' + payload + cksum(payload);
+}
+function decodeSave(code) {
+  code = (code || '').trim();
+  if (!code.startsWith('IP6') || code.length < 10) throw new Error('format');
+  const payload = code.slice(3, -2);
+  if (cksum(payload) !== code.slice(-2)) throw new Error('checksum');
+  let v = b62dec(payload);
+  const get = (w) => { const m = (1n << BigInt(w)) - 1n; const r = Number(v & m); v >>= BigInt(w); return r; };
+  const s = {};
+  s.diffIdx = get(2); s.endless = !!get(1); s.wave = get(8); s.cash = get(20); s.baseHP = get(7);
+  s.kills = get(16); s.earned = get(20); s.elapsed = get(17);
+  s.spent = get(20); s.destroyed = get(20);
+  s.ak = {}; s.al = {};
+  for (const a of ['left', 'top', 'bottom']) { s.ak[a] = get(8) * 8; s.al[a] = get(8) * 8; }
+  s.intel = !!get(1);
+  const n = get(7); s.towers = [];
+  for (let i = 0; i < n; i++) {
+    const ti = get(4), lv = get(2) + 1, mo = get(2), pr = get(4), em = get(1), st = get(2) + 1, x = get(9) * 4, y = get(8) * 4;
+    if (ti >= TKEYS.length || pr > EKEYS.length || lv > 3) throw new Error('data');
+    s.towers.push({ k: TKEYS[ti], level: lv, mode: MODE_ORDER[mo], prio: pr ? EKEYS[pr - 1] : null, emcon: !!em, struct: st, x, y });
+  }
+  if (s.diffIdx > 2 || s.wave > 200 || (!s.endless && s.wave >= LAST_WAVE)) throw new Error('data');
+  return s;
+}
+function applySave(s) {
+  enemies = []; projs = []; birds = []; parts = []; texts = []; rings = []; tracers = []; spawnQ = [];
+  placing = null; sel = null; shake = 0; flash = 0; waveBanner = 0; paused = false; speed = 1;
+  diffKey = DKEYS[s.diffIdx];
+  const D = DIFFS[diffKey];
+  diffHp = D.hp; diffBounty = D.b; diffSpd = D.spd; baseMax = D.base;
+  baseHP = Math.min(s.baseHP, baseMax);
+  cash = s.cash; wave = s.wave; endless = s.endless;
+  kills = s.kills; earned = s.earned; elapsed = s.elapsed;
+  spent = s.spent; destroyed = s.destroyed; repairSpent = 0; resetSys();
+  axisKills = { ...s.ak }; axisLeaks = { ...s.al }; intelBoost = s.intel; reconEscaped = false; waveStartCode = '';
+  towers = [];
+  for (const st of s.towers) {
+    const t = makeTower(st.k, st.x, st.y);
+    for (let L = 2; L <= st.level; L++) { t.invested += upCost(t); t.level = L; }
+    applyStats(t);
+    t.mode = st.mode; t.prio = st.prio; t.emcon = !!st.emcon;
+    if (t.k === 'gen') t.struct = st.struct;
+    towers.push(t);
+  }
+  seen.clear();
+  for (let w = 0; w < Math.min(wave, LAST_WAVE); w++) for (const grp of WAVES[w]) seen.add(grp.type);
+  if (wave >= LAST_WAVE) for (const k in ETYPES) seen.add(k);
+  _cash = -1; _hp = -1; _wave = ''; _host = ''; _pwr = ''; _xr = ''; saveCode = ''; saveTick = 0;
+  el('btnSpeed').textContent = '1×'; el('btnPause').textContent = '❚❚';
+  el('btnWave').disabled = false;
+  el('ovMenu').classList.add('hide'); el('ovDone').classList.add('hide'); el('ovPause').classList.add('hide');
+  refreshDetail();
+  state = 'build';
+  prepareNext();
+  el('tipbar').innerHTML = 'CHECKPOINT LOADED — resuming before wave ' + (wave + 1) + ' · ' + DIFFS[diffKey].name;
+}
+let saveCode = '', saveTick = 0, saveFlashT = null;
+function copyText(code, btn, restoreLabel) {
+  const done = () => {
+    btn.textContent = 'COPIED ✓';
+    clearTimeout(saveFlashT);
+    saveFlashT = setTimeout(() => { btn.textContent = restoreLabel; }, 1300);
+  };
+  const fallback = () => {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = code;
+      ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      done();
+    } catch (e) {
+      el('nextwave').innerHTML = '<b>CHECKPOINT:</b> ' + code + ' <span style="color:var(--dim)">(select & copy manually)</span>';
+    }
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText)
+    navigator.clipboard.writeText(code).then(done).catch(fallback);
+  else fallback();
+  sfx.click();
+}
+function copyCheckpoint() {
+  saveCode = encodeSave();
+  copyText(saveCode, el('btnSave'), '⎘ ' + saveCode.slice(0, 9) + '…');
+}
+
+function buildShop() {
+  const shop = el('shop');
+  shop.innerHTML = '';
+  TKEYS.forEach((k, i) => {
+    const d = TT[k];
+    const c = document.createElement('div');
+    c.className = 'card'; c.dataset.k = k;
+    c.title = d.ds;
+    const pwr = d.draw > 0 ? ' <span style="color:var(--cyan)">⚡' + d.draw + '</span>'
+      : d.pwr ? ' <span style="color:var(--cyan)">+' + d.pwr + '⚡</span>' : '';
+    c.innerHTML = '<span class="hk">' + (i + 1) + '</span><div class="nm">' + d.name + '</div>' +
+      '<div class="cost">' + fmt$(d.cost) + pwr + (d.ammoCost ? ' <span style="color:var(--dim)">+$' + d.ammoCost + '/shot</span>' : '') + '</div>' +
+      '<div class="ds">' + d.ds + '</div>';
+    c.addEventListener('click', () => selectShop(k));
+    shop.appendChild(c);
+  });
+}
+function selectShop(k) {
+  if (state === 'menu' || state === 'over' || state === 'won') return;
+  if (cash < TT[k].cost) { sfx.deny(); return; }
+  placing = (placing === k) ? null : k;
+  sel = null; refreshDetail();
+  document.querySelectorAll('.card').forEach(c => c.classList.toggle('sel', c.dataset.k === placing));
+  sfx.click();
+}
+function refreshShop() {
+  document.querySelectorAll('.card').forEach(c => {
+    c.classList.toggle('off', cash < TT[c.dataset.k].cost);
+    if (placing !== c.dataset.k) c.classList.remove('sel');
+  });
+}
+function emconLine(t) { return t.emcon ? '\n\u25cc EMCON — silent: no emissions, no draw,\n  invisible to WASPS. Press E to emit.' : ''; }
+function opticLine(t) {
+  if (!t.optic) return '';
+  return '\n\u25c6 OPTIC LINK: ' + (t.prio ? 'HUNTING ' + ETYPES[t.prio].name : 'ANY (decoys ignored)')
+    + (t.opticMul > 1 ? ' · +' + Math.round((t.opticMul - 1) * 100) + '% DMG' : '');
+}
+function statLine(t) {
+  const effR = Math.round(t.range * t.buffMulOn);
+  const link = t.buffMulOn > 1 ? ' ▲LINKED' : '';
+  switch (t.k) {
+    case 'vulcan': return 'DMG ' + t.dmg + ' kinetic · ' + t.rof.toFixed(1) + ' rd/s\nRANGE ' + effR + link + opticLine(t) + '\nArmor reduces each hit.';
+    case 'sam': return emconLine(t) + 'DMG ' + t.dmg + ' blast · AoE ' + Math.round(t.aoe) + '\nRANGE ' + TT.sam.minR + '–' + effR + link + ' · RELOAD ' + t.cdMax.toFixed(1) + 's' + opticLine(t) + '\nAmmo ' + fmt$(t.ammoCost) + '/shot — ignores armor.';
+    case 'laser': return 'DPS ' + Math.round(t.dpsMin) + '→' + Math.round(t.dpsMax) + ' (ramps on held target)\nRANGE ' + effR + link + ' · HEAT CAP ' + t.heatMax.toFixed(1) + 's' + opticLine(t) + '\nIgnores armor. Free to fire.';
+    case 'pulse': return 'BURST ' + t.dmg + ' to ALL in radius\nRANGE ' + effR + ' · CYCLE ' + t.cdMax.toFixed(1) + 's\nStuns 0.45s. Fiber drones take half.';
+    case 'jammer': return emconLine(t) + 'SLOW ' + Math.round(t.slow * 100) + '% + drift in field\nRANGE ' + effR + link + (t.level >= 3 ? '\nBurn-through: slows fiber drones 45%.' : '\nNo effect on fiber-optic (Viper).');
+    case 'falcon': return 'INTERCEPTORS ' + t.stock + '/' + t.cap + ' · RAM ' + t.dmg + ' dmg\nENGAGE RANGE ' + effR + link + '\nAirframe rebuild ' + t.rebuild.toFixed(1) + 's, free.';
+    case 'radar': return emconLine(t) + 'COVERAGE ' + effR + '\n+' + Math.round((t.buffMul - 1) * 100) + '% range to systems inside\nBurns through stealth · datalinks track.';
+    case 'optic': return 'COVERAGE ' + Math.round(t.range) + ' · fire-control +' + Math.round(t.dmgBuff * 100) + '% DMG\nLinked guns/SAMs/lasers can hunt a\nchosen drone TYPE & ignore decoys.';
+    case 'gen': return 'GRID OUTPUT +' + TT.gen.pwr + ' POWER' +
+      (DIFFS[diffKey].fieldPwr ? ' · COVERAGE ' + TT.gen.covR + '\nSTRUCTURE ' + t.struct + '/3 — Wasps strike field power.' : '\nFOB baseline supply: 8') +
+      '\nGrid: ' + powerUsed() + ' / ' + powerCap() + ' in use.';
+  }
+  return '';
+}
+function refreshDetail() {
+  const d = el('detail');
+  if (!sel) { d.classList.add('hide'); return; }
+  d.classList.remove('hide');
+  const t = sel;
+  const draw = TT[t.k].draw;
+  el('dName').innerHTML = TT[t.k].name + ' <span>MK-' + t.level + (draw ? ' · ⚡' + draw : '') + '</span>';
+  el('dStats').textContent = statLine(t);
+  const up = el('dUp');
+  up.style.display = t.k === 'gen' ? 'none' : '';
+  if (t.level >= 3) { up.textContent = 'MAX LEVEL'; up.disabled = true; }
+  else { const c = upCost(t); up.textContent = 'UPGRADE ' + fmt$(c); up.disabled = cash < c; }
+  const showMode = (t.kind === 'gun' || t.kind === 'sam' || t.kind === 'laser');
+  el('dMode').style.display = showMode ? '' : 'none';
+  el('dMode').textContent = 'TGT: ' + MODES[t.mode];
+  const em = el('dEmcon');
+  em.style.display = isEmitter(t) ? '' : 'none';
+  em.textContent = t.emcon ? '◌ SILENT' : 'EMCON';
+  em.style.color = t.emcon ? 'var(--cyan)' : '';
+  const pr = el('dPrio');
+  if (showMode && t.optic) {
+    pr.style.display = 'block';
+    pr.value = t.prio || '';
+  } else pr.style.display = 'none';
+  el('dSell').textContent = 'SELL ' + fmt$(Math.floor(t.invested * 0.7));
+}
+function buildPrioOptions() {
+  const pr = el('dPrio');
+  let html = '<option value="">◆ PRIORITY: ANY CONTACT</option>';
+  for (const k in ETYPES) html += '<option value="' + k + '">◆ PRIORITY: ' + ETYPES[k].name + '</option>';
+  pr.innerHTML = html;
+  pr.addEventListener('change', () => {
+    if (!sel) return;
+    sel.prio = pr.value || null;
+    sel.tg = null;
+    refreshDetail(); sfx.click();
+  });
+}
+function doUpgrade() {
+  if (!sel || sel.level >= 3 || sel.k === 'gen') return;
+  const c = upCost(sel);
+  if (cash < c) { sfx.deny(); return; }
+  cash -= c; sel.invested += c; sel.level++;
+  addSpend(sel.k, c);
+  applyStats(sel);
+  addText(sel.x, sel.y - 26, 'MK-' + sel.level, '#7dffab');
+  sfx.cash(); refreshDetail();
+}
+function doSell() {
+  if (!sel) return;
+  const refund = Math.floor(sel.invested * 0.7);
+  cash += refund;
+  spent -= refund; if (SYS_STATS[sel.k]) SYS_STATS[sel.k].spent -= refund;
+  addText(sel.x, sel.y - 20, '+' + refund, '#ffb454');
+  towers = towers.filter(t => t !== sel);
+  sel = null; refreshDetail(); sfx.click();
+}
+function isEmitter(t) { return t && (t.kind === 'radar' || t.kind === 'jam' || t.kind === 'sam'); }
+function toggleEmcon() {
+  if (!isEmitter(sel)) return;
+  if (sel.emcon) {
+    if (powerUsed() + TT[sel.k].draw > powerCap()) {
+      addText(sel.x, sel.y - 24, 'NO GRID POWER', '#ff4f4f'); sfx.deny(); return;
+    }
+    sel.emcon = false;
+    addText(sel.x, sel.y - 24, 'EMITTING', '#7dffab');
+  } else {
+    sel.emcon = true; sel.tg = null;
+    addText(sel.x, sel.y - 24, 'GONE SILENT', '#5fd8ff');
+  }
+  _pwr = ''; refreshDetail(); sfx.click();
+}
+function cycleMode() {
+  if (!sel) return;
+  sel.mode = MODE_ORDER[(MODE_ORDER.indexOf(sel.mode) + 1) % MODE_ORDER.length];
+  sel.tg = null; refreshDetail(); sfx.click();
+}
+
+function renderPreview() {
+  if (!nextGroups) return;
+  const counts = new Map();
+  let flank = false;
+  for (const q of nextGroups) {
+    counts.set(q.type, (counts.get(q.type) || 0) + q.count);
+    if (q.edge !== 'left') flank = true;
+  }
+  let html = '<b>WAVE ' + (wave + 1) + ' INBOUND:</b> ';
+  const bits = []; let newBrief = '';
+  for (const [ty, n] of counts) {
+    const d = ETYPES[ty];
+    const isNew = !seen.has(ty);
+    bits.push(n + '× ' + d.name + (isNew ? ' <span class="new">★NEW</span>' : ''));
+    if (isNew && !newBrief) newBrief = ' — <span class="new">' + d.name + ':</span> ' + d.brief;
+  }
+  html += bits.join(' · ');
+  if (flank) html += ' · <span style="color:var(--red)">FLANKING AXES</span>';
+  if (DIFFS[diffKey].adapt && wave >= 1) {
+    const pa = primaryAxis();
+    if (pa.sharp > 1.25) html += ' · <span style="color:var(--red)">PRIMARY AXIS: ' + pa.name + '</span>';
+  }
+  if (intelBoost) html += ' · <span style="color:var(--red)">⚠ RECON EXFILTRATED — COORDINATED RAID</span>';
+  html += newBrief;
+  el('nextwave').innerHTML = html;
+  el('btnWave').textContent = 'LAUNCH WAVE ' + (wave + 1) + ' ▶';
+}
+
+const TIPS = [
+  'The grid is finite: the FOB supplies <b>8 power</b>, every system draws some. Generators add +5 — but cost cash and a slot.',
+  '<b>Nothing shoots what nothing sees.</b> The FOB senses ~260m on its own — push radars and optics FORWARD as pickets so your long-range Javelins get their full reach.',
+  'Fuzzy blips are <b>unconfirmed contacts</b> — no track, no engagement. Get a sensor on them before they get to you.',
+  'Press <b>E</b> on a radar, jammer or Javelin to go <b>EMCON</b>: silent emitters are invisible to Wasps and draw no power — and do nothing. Rotate emissions under SEAD attack.',
+  'Autocannons <b>miss</b> — small fast FPVs are hard targets. An ORACLE optic link tightens the fire-control solution (+15% hit chance).',
+  'Watch the <b>X-RATE</b>: enemy value downed per dollar you spend. Above 1.0 you are winning the war of attrition, not just the wave.',
+  'On STANDARD and above the enemy is <b>adaptive</b>: they route raids away from where their drones die and toward where they got through. No safe gaps.',
+  '<b>SPARROW recon drones</b> map your grid. Let one cross alive and the next raid arrives compressed on your weakest axis.',
+  'Leaks teach the enemy. A hole on the south axis this wave means <b>more of the next wave comes south</b>.',
+  'On VETERAN+: the FOB grid reaches 250m. <b>Field generators</b> power everything beyond — and they radiate. Screen them or lose them (3 hits).',
+  'PAUSE (Space) has your <b>checkpoint and restart</b> — mid-wave, the checkpoint is the moment you hit LAUNCH.',
+  'Your <b>X-RATE goes on the command net</b> when the run ends — top 5 per threat level, wave 5 minimum to qualify. Spend like it matters.',
+  '<b>Upgrades don\'t raise power draw.</b> When the grid is tight, a MK-3 beats two MK-1s.',
+  'Mind the <b>cost exchange</b> — a $10 missile on a $5 Hornet (or a $1 decoy) is a losing trade. Guns and jammers handle trash.',
+  '<b>WASPS hunt your emitters.</b> Radars, jammers and SAMs draw them in — screen them with a Vulcan.',
+  '<b>SPECTERS cruise above the gun envelope.</b> Keep at least one Javelin or Dazzler online or they walk right in.',
+  'Javelins have a <b>90m minimum range</b> — missiles can\'t arm that close. Site them back from the wire, guns up front.',
+  'A <b>STATIC</b> escort jammer halves your fire rate inside its bubble. Kill it first, from outside the bubble if you can.',
+  '<b>DECOYS</b> are worth $1 and painted like Gerans. TGT: STRONGEST keeps your missiles honest.',
+  '<b>Layer your defense</b>: SAMs kill heavies at range, guns and HPM handle leakers up close.',
+  'A <b>Sentinel radar</b> extends every system inside its coverage by 20% and burns through Ghost stealth.',
+  'An <b>ORACLE EO/IR</b> lets each linked gun, SAM and laser HUNT a chosen drone type — and never waste fire on decoys. Point your Javelins at WASPS or HIVES specifically.',
+  'ORACLE is a passive sensor — <b>Wasps can\'t home on it</b>. Radars and jammers still draw them.',
+  '<b>Dazzler</b> damage ramps the longer it holds one target — set TGT: STRONGEST and let it cook.',
+  'Press <b>R</b> between waves to repair the FOB: +10 integrity for $50. Cheaper than losing.',
+  'Selling refunds 70% — repositioning the grid between waves is a legitimate tactic.',
+  'The <b>⎘ chip</b> up top is a checkpoint code: click to copy, paste on the start screen to replay a wave with different tactics — or send it to someone else.',
+  'Hold <b>SHIFT</b> while placing to build several. Press <b>T</b> to change a system\'s targeting priority.',
+];
+let tipIdx = 0;
+setInterval(() => {
+  if (state === 'build' || state === 'combat') {
+    el('tipbar').innerHTML = 'TIP // ' + TIPS[tipIdx % TIPS.length];
+    tipIdx++;
+  }
+}, 9000);
+
+/* topbar cache */
+let _cash = -1, _hp = -1, _wave = '', _host = '', _pwr = '', _xr = '';
+function refreshTop() {
+  if (cash !== _cash) { _cash = cash; el('cashV').textContent = fmt$(cash); refreshShop(); if (sel) refreshDetail(); }
+  if (baseHP !== _hp) {
+    _hp = baseHP;
+    el('hpFill').style.width = clamp(baseHP / baseMax * 100, 0, 100) + '%';
+    el('hpFill').style.background = baseHP / baseMax > 0.4
+      ? 'linear-gradient(90deg,#2e7d4f,#7dffab)' : 'linear-gradient(90deg,#7d2e2e,#ff4f4f)';
+    el('hpTxt').textContent = Math.max(0, Math.round(baseHP)) + ' / ' + baseMax;
+  }
+  const pu = powerUsed(), pc = powerCap();
+  const pv = pu + '/' + pc;
+  if (pv !== _pwr) {
+    _pwr = pv;
+    el('pwrV').textContent = pv;
+    el('pwrV').style.color = pu >= pc ? 'var(--red)' : pc - pu <= 1 ? 'var(--amber)' : 'var(--cyan)';
+  }
+  const wv = wave + '/' + (endless ? '∞' : '15');
+  if (wv !== _wave) { _wave = wv; el('waveV').textContent = wv; }
+  const hv = state === 'combat' ? String(enemies.length + queuedLeft()) : '—';
+  if (hv !== _host) { _host = hv; el('hostV').textContent = hv; }
+  el('btnRepair').disabled = !(state === 'build' && baseHP < baseMax && cash >= 50);
+  const xr = spent > 0 ? (destroyed / spent) : -1;
+  const xt = xr < 0 ? '—' : xr.toFixed(2);
+  if (xt !== _xr) {
+    _xr = xt;
+    el('xrV').textContent = xt;
+    el('xrV').style.color = xr < 0 ? 'var(--dim)' : xr >= 1 ? 'var(--phos)' : xr >= 0.5 ? 'var(--amber)' : 'var(--red)';
+  }
+  if (state === 'build') {
+    if (--saveTick <= 0) {
+      saveTick = 30;
+      const c = encodeSave();
+      if (c !== saveCode) {
+        saveCode = c;
+        if (el('btnSave').textContent !== 'COPIED ✓') el('btnSave').textContent = '⎘ ' + c.slice(0, 9) + '…';
+      }
+    }
+    el('btnSave').style.display = 'inline-block';
+  } else el('btnSave').style.display = 'none';
+}
+
+/* ================= input ================= */
+function canvasXY(ev) {
+  const r = cv.getBoundingClientRect();
+  return { x: (ev.clientX - r.left) * (W / r.width), y: (ev.clientY - r.top) * (H / r.height) };
+}
+cv.addEventListener('pointermove', ev => {
+  const p = canvasXY(ev);
+  mouse.x = p.x; mouse.y = p.y; mouse.in = true;
+  hoverT = null;
+  for (const t of towers) if (Math.hypot(t.x - p.x, t.y - p.y) < 18) { hoverT = t; break; }
+});
+cv.addEventListener('pointerleave', () => { mouse.in = false; hoverT = null; });
+cv.addEventListener('pointerdown', ev => {
+  initAudio(); if (AC && AC.state === 'suspended') AC.resume();
+  if (state === 'menu' || state === 'over' || state === 'won') return;
+  const p = canvasXY(ev);
+  if (placing) {
+    const d = TT[placing];
+    const hasPwr = d.draw === 0 || powerUsed() + d.draw <= powerCap();
+    const hasCov = !DIFFS[diffKey].fieldPwr || d.draw === 0 || genCovered(p.x, p.y);
+    if (validPlace(p.x, p.y) && cash >= d.cost && hasPwr && hasCov) {
+      cash -= TT[placing].cost;
+      addSpend(placing, TT[placing].cost);
+      _pwr = '';
+      towers.push(makeTower(placing, p.x, p.y));
+      sfx.click();
+      if (!ev.shiftKey) {
+        placing = null;
+        document.querySelectorAll('.card').forEach(c => c.classList.remove('sel'));
+      }
+    } else sfx.deny();
+    return;
+  }
+  let hit = null;
+  for (const t of towers) if (Math.hypot(t.x - p.x, t.y - p.y) < 18) { hit = t; break; }
+  sel = hit; refreshDetail();
+});
+cv.addEventListener('contextmenu', ev => {
+  ev.preventDefault();
+  placing = null; sel = null; refreshDetail();
+  document.querySelectorAll('.card').forEach(c => c.classList.remove('sel'));
+});
+
+document.addEventListener('keydown', ev => {
+  if (ev.target && ev.target.tagName === 'INPUT') {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      if (ev.target.id === 'loadCode') el('btnLoad').click();
+      if (ev.target.id === 'lbName') submitScore();
+    }
+    return;
+  }
+  if (state === 'menu') { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); el('btnStart').click(); } return; }
+  if (state === 'over' || state === 'won') return;
+  const k = ev.key.toLowerCase();
+  if (k >= '1' && k <= '9') selectShop(TKEYS[+k - 1]);
+  else if (k === 'r') doRepair();
+  else if (k === 'escape') { placing = null; sel = null; refreshDetail();
+    document.querySelectorAll('.card').forEach(c => c.classList.remove('sel')); }
+  else if (k === ' ') { ev.preventDefault(); if (state === 'build') startWave(); else togglePause(); }
+  else if (k === 'u') doUpgrade();
+  else if (k === 'e') toggleEmcon();
+  else if (k === 't') cycleMode();
+  else if (k === 'x') doSell();
+  else if (k === 'f') toggleSpeed();
+  else if (k === 'p') togglePause();
+});
+
+let restartArm = 0;
+function togglePause() {
+  if (state !== 'combat' && state !== 'build') return;
+  paused = !paused;
+  el('btnPause').textContent = paused ? '▶' : '❚❚';
+  el('ovPause').classList.toggle('hide', !paused);
+  if (paused) {
+    el('pauseSub').textContent = state === 'combat'
+      ? 'WAVE ' + wave + ' IN PROGRESS — checkpoint = as launched'
+      : 'BUILD PHASE — checkpoint = current state';
+    el('btnPauseRestart').textContent = '↺ RESTART RUN';
+    restartArm = 0;
+  }
+}
+function toggleSpeed() {
+  speed = speed === 1 ? 2 : 1;
+  el('btnSpeed').textContent = speed + '×';
+}
+el('btnWave').addEventListener('click', () => { initAudio(); startWave(); });
+el('btnPause').addEventListener('click', togglePause);
+el('btnResume').addEventListener('click', togglePause);
+el('btnPauseSave').addEventListener('click', () => {
+  // mid-wave: the state as this wave was launched; build phase: right now
+  const code = (state === 'combat' && waveStartCode) ? waveStartCode : encodeSave();
+  copyText(code, el('btnPauseSave'), '⎘ COPY CHECKPOINT');
+});
+el('btnPauseRestart').addEventListener('click', () => {
+  if (Date.now() < restartArm) {
+    paused = false; el('ovPause').classList.add('hide'); el('btnPause').textContent = '❚❚';
+    restartGame(); sfx.horn();
+  } else {
+    restartArm = Date.now() + 3000;
+    el('btnPauseRestart').textContent = '⚠ CONFIRM RESTART?';
+    setTimeout(() => { if (Date.now() >= restartArm) el('btnPauseRestart').textContent = '↺ RESTART RUN'; }, 3100);
+  }
+});
+el('btnPauseMenu').addEventListener('click', () => {
+  paused = false; el('ovPause').classList.add('hide'); el('btnPause').textContent = '❚❚';
+  state = 'menu';
+  el('ovMenu').classList.remove('hide');
+  sfx.click();
+});
+el('btnSpeed').addEventListener('click', toggleSpeed);
+el('btnSound').addEventListener('click', () => {
+  soundOn = !soundOn;
+  el('btnSound').textContent = soundOn ? '♪' : '✕';
+});
+el('btnRepair').addEventListener('click', doRepair);
+el('btnSave').addEventListener('click', copyCheckpoint);
+el('btnLoad').addEventListener('click', () => {
+  initAudio(); if (AC && AC.state === 'suspended') AC.resume();
+  try {
+    applySave(decodeSave(el('loadCode').value));
+    el('loadCode').value = '';
+    sfx.horn();
+  } catch (e) {
+    el('loadErr').style.display = 'block';
+    setTimeout(() => { el('loadErr').style.display = 'none'; }, 2600);
+    sfx.deny();
+  }
+});
+el('btnLbSubmit').addEventListener('click', submitScore);
+el('lbName').addEventListener('input', () => {
+  el('lbName').value = el('lbName').value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+});
+el('lbName').addEventListener('keydown', ev => {
+  if (ev.key === 'Enter') { ev.preventDefault(); submitScore(); }
+  ev.stopPropagation();
+});
+el('btnToMenu').addEventListener('click', () => {
+  el('ovDone').classList.add('hide');
+  el('ovMenu').classList.remove('hide');
+  state = 'menu';
+  sfx.click();
+});
+document.querySelectorAll('#diffRow .btn').forEach(b => {
+  b.addEventListener('click', () => {
+    diffKey = b.dataset.d;
+    document.querySelectorAll('#diffRow .btn').forEach(x => x.classList.toggle('on', x === b));
+    el('diffDesc').textContent = DIFFS[diffKey].desc;
+    sfx.click();
+  });
+});
+el('diffDesc').textContent = DIFFS.std.desc;
+function applyDiff() {
+  const D = DIFFS[diffKey];
+  diffHp = D.hp; diffBounty = D.b; diffSpd = D.spd;
+  baseMax = D.base; baseHP = baseMax;
+  _hp = -1;
+}
+el('btnStart').addEventListener('click', () => {
+  initAudio(); if (AC && AC.state === 'suspended') AC.resume();
+  applyDiff();
+  el('ovMenu').classList.add('hide');
+  state = 'build';
+  el('tipbar').innerHTML = 'TIP // ' + TIPS[0]; tipIdx = 1;
+  sfx.horn();
+});
+el('btnRestart').addEventListener('click', () => restartGame());
+el('btnEndless').addEventListener('click', () => {
+  endless = true;
+  el('ovDone').classList.add('hide');
+  state = 'build';
+  el('btnWave').disabled = false;
+  prepareNext();
+  sfx.horn();
+});
+el('dUp').addEventListener('click', doUpgrade);
+el('dMode').addEventListener('click', cycleMode);
+el('dSell').addEventListener('click', doSell);
+el('dEmcon').addEventListener('click', toggleEmcon);
+
+function restartGame() {
+  enemies = []; towers = []; projs = []; birds = []; parts = []; texts = []; rings = []; tracers = [];
+  spawnQ = []; seen.clear();
+  cash = 260; wave = 0; kills = 0; earned = 0; elapsed = 0;
+  endless = false; hpMul = 1; paused = false; speed = 1;
+  spent = 0; destroyed = 0; repairSpent = 0; resetSys();
+  axisKills = { left: 0, top: 0, bottom: 0 }; axisLeaks = { left: 0, top: 0, bottom: 0 };
+  intelBoost = false; reconEscaped = false; waveStartCode = '';
+  placing = null; sel = null; shake = 0; flash = 0; waveBanner = 0;
+  applyDiff();
+  _cash = -1; _hp = -1; _wave = ''; _host = ''; _pwr = ''; _xr = ''; saveCode = ''; saveTick = 0;
+  el('btnSpeed').textContent = '1×'; el('btnPause').textContent = '❚❚';
+  el('ovDone').classList.add('hide');
+  el('btnWave').disabled = false;
+  refreshDetail();
+  state = 'build';
+  prepareNext();
+}
+
+/* ================= main loop ================= */
+let last = performance.now();
+function frame(now) {
+  let dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  time += dt;
+  if (!paused && (state === 'combat' || state === 'build')) {
+    elapsed += dt;
+    let sim = dt * speed;
+    while (sim > 0) {
+      const step = Math.min(sim, 1 / 45);
+      updTowers(step);
+      updProjs(step);
+      updBirds(step);
+      updFx(step);
+      if (state === 'combat') { updWaves(step); updEnemies(step); }
+      sim -= step;
+      if (state === 'over' || state === 'won') break;
+    }
+  }
+  refreshTop();
+  render();
+  requestAnimationFrame(frame);
+}
+
+/* ================= boot ================= */
+resetSys();
+buildShop();
+buildPrioOptions();
+prepareNext();
+refreshDetail();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

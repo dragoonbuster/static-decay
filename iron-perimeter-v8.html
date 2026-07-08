@@ -1678,7 +1678,6 @@ function lbRowsHTML(board, hl) {
 }
 async function showLeaderboard(win) {
   const ex = exchangeGrade();
-  const wavesDone = win ? LAST_WAVE : Math.max(0, wave - (state === 'over' ? 0 : 0));
   el('lbTitle').textContent = 'TOP 5 X-RATE — ' + DIFFS[diffKey].name + ' · ' + LB.label();
   el('lbRows').textContent = 'CONTACTING COMMAND NET…';
   el('lbEntry').style.display = 'none';
@@ -1797,7 +1796,7 @@ function decodeSave(code) {
     if (ti >= TKEYS.length || pr > EKEYS.length || lv > 3) throw new Error('data');
     s.towers.push({ k: TKEYS[ti], level: lv, mode: MODE_ORDER[mo], prio: pr ? EKEYS[pr - 1] : null, emcon: !!em, struct: st, x, y });
   }
-  if (s.diffIdx > 2 || s.wave > 200 || (!s.endless && s.wave >= LAST_WAVE)) throw new Error('data');
+  if (s.diffIdx >= DKEYS.length || s.wave > 200 || (!s.endless && s.wave >= LAST_WAVE)) throw new Error('data');
   return s;
 }
 function applySave(s) {
@@ -2264,9 +2263,8 @@ function applyDiff() {
 }
 el('btnStart').addEventListener('click', () => {
   initAudio(); if (AC && AC.state === 'suspended') AC.resume();
-  applyDiff();
+  restartGame(); // the menu is reachable mid-run; starting must not resume stale towers/wave/cash
   el('ovMenu').classList.add('hide');
-  state = 'build';
   el('tipbar').innerHTML = 'TIP // ' + TIPS[0]; tipIdx = 1;
   sfx.horn();
 });

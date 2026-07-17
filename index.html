@@ -240,6 +240,10 @@
       <h1 id="doneTitle">PERIMETER HELD</h1>
       <div class="sub" id="doneMsg">ALL WAVES REPELLED</div>
       <div id="doneStats"></div>
+      <div id="aarWrap" style="display:flex;gap:12px;align-items:flex-start;border:1px dashed var(--line2);padding:8px 10px;margin-bottom:14px">
+        <canvas id="aarCv" width="288" height="162" style="flex:0 0 auto;border:1px solid var(--line2);background:#060a08"></canvas>
+        <div id="aarTxt" style="font-size:10.5px;line-height:1.75;color:var(--ink);white-space:pre"></div>
+      </div>
       <div id="lbWrap">
         <div id="lbTitle">TOP 5 — COMMAND NET</div>
         <div id="lbRows">CONTACTING COMMAND NET…</div>
@@ -520,6 +524,11 @@ let axisLeaks = { left: 0, top: 0, bottom: 0 };
 let intelBoost = false, reconEscaped = false;
 let waveStartCode = '';
 let waveRec = null; // last wave's replay record: code + seed + groups + input log
+let replaying = false;
+/* after-action record (whole run, non-decaying — axisKills/axisLeaks decay for the adaptive AI) */
+let killPts = [], seadPts = [], killValAxis = {}, leakDmgAxis = {}, reconExfilN = 0;
+function resetAAR() { killPts = []; seadPts = []; killValAxis = { left: 0, top: 0, bottom: 0 }; leakDmgAxis = { left: 0, top: 0, bottom: 0 }; reconExfilN = 0; }
+resetAAR();
 let enemies = [], towers = [], projs = [], birds = [], parts = [], texts = [], rings = [], tracers = [];
 let spawnQ = [], nextGroups = null;
 let placing = null, sel = null, hoverT = null;
@@ -568,6 +577,11 @@ function onKill(e) {
   cash += b; earned += b; kills++;
   destroyed += e.bounty;
   axisKills[e.spawnEdge] = (axisKills[e.spawnEdge] || 0) + e.bounty;
+  if (!replaying) {
+    killPts.push({ x: e.x, y: e.y });
+    if (killPts.length > 4000) killPts.shift();
+    killValAxis[e.spawnEdge] = (killValAxis[e.spawnEdge] || 0) + e.bounty;
+  }
   if (e.recon) addText(e.x, e.y - 20, 'RECON DOWNED', '#7dffab');
   if (e.lastHit && SYS_STATS[e.lastHit]) SYS_STATS[e.lastHit].kills++;
   const csrc = e.lastHitT && e.lastHitT.cs ? e.lastHitT.cs : 'GRID';
@@ -796,6 +810,7 @@ function updEnemies(dt) {
         e.dead = true; e.arrived = true; // exfiltrated — no bounty
         if (DIFFS[diffKey].adapt) {
           intelBoost = true; reconEscaped = true;
+          if (!replaying) reconExfilN++;
           addText(clamp(e.x, 60, W - 60), clamp(e.y, 40, H - 40), '⚠ RECON EXFILTRATED', '#ff9f43');
           radioMsg('ALL STATIONS: RECON BIRD EXFILTRATED — EXPECT COORDINATED RAID');
           sfx.deny();
@@ -826,6 +841,7 @@ function updEnemies(dt) {
       if (e.tw) {
         e.tx = e.tw.x; e.ty = e.tw.y;
         if (dist(e, e.tw) < 18) {
+          if (!replaying) { seadPts.push({ x: e.tw.x, y: e.tw.y }); if (seadPts.length > 400) seadPts.shift(); }
           if (e.tw.k === 'gen') {
             e.tw.struct--;
             if (e.tw.struct <= 0) {
@@ -876,6 +892,7 @@ function updEnemies(dt) {
       e.dead = true; e.arrived = true;
       baseHP -= e.dmg;
       axisLeaks[e.spawnEdge] = (axisLeaks[e.spawnEdge] || 0) + e.dmg;
+      if (!replaying) leakDmgAxis[e.spawnEdge] = (leakDmgAxis[e.spawnEdge] || 0) + e.dmg;
       explode(e.x, e.y, e.r + 4);
       shake = Math.min(1.4, shake + 0.25 + e.dmg / 40);
       flash = Math.min(1, flash + 0.35 + e.dmg / 100);
@@ -1140,6 +1157,43 @@ function aarHTML() {
   if (repairSpent > 0) rows += 'REPAIRS '.padEnd(8, ' ') + fmt$(repairSpent).padStart(34, ' ') + '<br>';
   return rows;
 }
+function renderAAR() {
+  const c = el('aarCv').getContext('2d');
+  const AW = 288, AH = 162, sx = AW / W, sy = AH / H;
+  c.fillStyle = '#060a08'; c.fillRect(0, 0, AW, AH);
+  c.strokeStyle = 'rgba(125,255,171,0.07)'; c.lineWidth = 1;
+  for (let x = 0; x <= AW; x += 24) { c.beginPath(); c.moveTo(x + 0.5, 0); c.lineTo(x + 0.5, AH); c.stroke(); }
+  for (let y = 0; y <= AH; y += 24) { c.beginPath(); c.moveTo(0, y + 0.5); c.lineTo(AW, y + 0.5); c.stroke(); }
+  const bx = BASE.x * sx, by = BASE.y * sy;
+  // leak arrows, weight = damage that came through on that axis
+  const AXPT = { left: [4, by], top: [bx * 0.55, 4], bottom: [bx * 0.55, AH - 4] };
+  for (const a in AXPT) {
+    const d = leakDmgAxis[a] || 0; if (!d) continue;
+    c.strokeStyle = 'rgba(255,79,79,0.55)';
+    c.lineWidth = clamp(1 + d / 12, 1, 7);
+    c.beginPath(); c.moveTo(AXPT[a][0], AXPT[a][1]); c.lineTo(bx, by); c.stroke();
+  }
+  // kill scatter — overdraw builds the heat picture
+  c.fillStyle = 'rgba(125,255,171,0.4)';
+  for (const p of killPts) c.fillRect(p.x * sx - 1, p.y * sy - 1, 2, 2);
+  // SEAD strikes on emplacements
+  c.strokeStyle = 'rgba(255,180,84,0.9)'; c.lineWidth = 1.2;
+  for (const p of seadPts) {
+    const px = p.x * sx, py = p.y * sy;
+    c.beginPath(); c.moveTo(px - 3, py - 3); c.lineTo(px + 3, py + 3);
+    c.moveTo(px + 3, py - 3); c.lineTo(px - 3, py + 3); c.stroke();
+  }
+  c.strokeStyle = '#7dffab'; c.lineWidth = 1.2;
+  hexPath(c, bx, by, 7); c.stroke();
+  const row = (nm, a) => nm + ('$' + Math.round(killValAxis[a] || 0) + ' down').padStart(11, ' ')
+    + ((leakDmgAxis[a] || 0) + ' dmg thru').padStart(13, ' ');
+  el('aarTxt').innerHTML =
+    '<span style="color:var(--dim)">AXIS      KILL VALUE    LEAKED</span>\n' +
+    row('WEST  ', 'left') + '\n' + row('NORTH ', 'top') + '\n' + row('SOUTH ', 'bottom') + '\n' +
+    '<span style="color:var(--amber)">SEAD strikes taken: ' + seadPts.length + '</span>\n' +
+    '<span style="color:var(--red)">Recon exfiltrated:  ' + reconExfilN + '</span>\n' +
+    '<span style="color:var(--dim)">dots kills · x wasp hits\narrow weight = leak damage</span>';
+}
 function exchangeGrade() {
   const r = destroyed / Math.max(1, spent);
   const g = r >= 1.5 ? 'S' : r >= 1.0 ? 'A' : r >= 0.65 ? 'B' : r >= 0.4 ? 'C' : 'D';
@@ -1161,6 +1215,7 @@ function gameOver(win) {
     '= <span>' + ex.r.toFixed(2) + ' : 1</span> — GRADE <span style="font-size:15px">' + ex.g + '</span><br>' +
     '<span style="color:var(--dim)">─── AFTER-ACTION, BY SYSTEM ───</span><br>' + aarHTML();
   el('btnEndless').style.display = win ? '' : 'none';
+  renderAAR();
   el('ovDone').classList.remove('hide');
   showLeaderboard(win);
   if (win) sfx.cash(); else sfx.boom(2);
@@ -1944,6 +1999,7 @@ function applySave(s) {
   kills = s.kills; earned = s.earned; elapsed = s.elapsed;
   spent = s.spent; destroyed = s.destroyed; repairSpent = 0; resetSys();
   csCount = {}; radio = []; radioKillT = -9; radioDiveT = -9; waveTypesLogged.clear(); clockJumps = s.wave;
+  resetAAR();
   axisKills = { ...s.ak }; axisLeaks = { ...s.al }; intelBoost = s.intel; reconEscaped = false; waveStartCode = ''; waveRec = null; simAcc = 0;
   towers = [];
   for (const st of s.towers) {
@@ -2429,6 +2485,7 @@ function restartGame() {
   enemies = []; towers = []; projs = []; birds = []; parts = []; texts = []; rings = []; tracers = [];
   spawnQ = []; seen.clear();
   csCount = {}; radio = []; radioKillT = -9; radioDiveT = -9; waveTypesLogged.clear(); clockJumps = 0;
+  resetAAR();
   cash = 260; wave = 0; kills = 0; earned = 0; elapsed = 0;
   endless = false; hpMul = 1; paused = false; speed = 1;
   spent = 0; destroyed = 0; repairSpent = 0; resetSys();

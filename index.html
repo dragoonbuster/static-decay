@@ -311,6 +311,24 @@ function mulberry32(seed) {
 let simRand = mulberry32(1);
 const sr = (a, b) => a + simRand() * (b - a);
 const sri = (a, b) => Math.floor(sr(a, b + 1));
+
+/* ---------- radio log + mission clock ---------- */
+const CSNAMES = { vulcan: 'VULCAN', sam: 'JAVELIN', laser: 'DAZZLER', pulse: 'PULSE',
+  jammer: 'SCRAMBLER', falcon: 'FALCON', radar: 'SENTINEL', optic: 'ORACLE', gen: 'GENSET' };
+let csCount = {};
+let radio = [], radioKillT = -9, radioDiveT = -9;
+const waveTypesLogged = new Set();
+let clockJumps = 0; // fiction: each cleared wave costs ~65 min of lull
+function clockMinutes() { return 260 + clockJumps * 65 + Math.floor(elapsed / 60); }
+function clockStr() {
+  const m = clockMinutes();
+  return 'D+' + (3 + Math.floor(m / 1440)) + ' ' +
+    String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+}
+function radioMsg(txt) {
+  radio.push({ txt: '[' + clockStr().slice(-5) + '] ' + txt, born: time });
+  if (radio.length > 30) radio.shift();
+}
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -435,7 +453,8 @@ function makeTower(k, x, y) {
     mode: (k === 'sam' ? 'strong' : 'near'), sw: rand(0, TAU), aim: rand(0, TAU),
     stock: TT[k].cap || 0, rb: 0, dry: 0, fx: 0, buffMulOn: 1, sndT: 0,
     offlineT: 0, rofMul: 1, prio: null, optic: false, opticMul: 1, emcon: false,
-    struct: (k === 'gen' ? 3 : 0), powered: true };
+    struct: (k === 'gen' ? 3 : 0), powered: true,
+    cs: CSNAMES[k] + '-' + (csCount[k] = (csCount[k] || 0) + 1) };
   applyStats(t);
   return t;
 }
@@ -506,11 +525,12 @@ function spawnEnemy(type, edge, px, py) {
     alt: d.hialt ? 'hi' : 'lo', aura: d.aura || 0, sead: !!d.sead, decoy: !!d.decoy, tw: null,
   });
 }
-function damage(e, amt, kinetic, srck) {
+function damage(e, amt, kinetic, srck, srcT) {
   if (e.dead) return;
   let dm = kinetic ? Math.max(1, amt - e.armor) : amt;
   e.hp -= dm;
   if (srck) e.lastHit = srck;
+  if (srcT) e.lastHitT = srcT;
   if (e.hp <= 0) { e.dead = true; onKill(e); }
 }
 function onKill(e) {
@@ -520,6 +540,12 @@ function onKill(e) {
   axisKills[e.spawnEdge] = (axisKills[e.spawnEdge] || 0) + e.bounty;
   if (e.recon) addText(e.x, e.y - 20, 'RECON DOWNED', '#7dffab');
   if (e.lastHit && SYS_STATS[e.lastHit]) SYS_STATS[e.lastHit].kills++;
+  const csrc = e.lastHitT && e.lastHitT.cs ? e.lastHitT.cs : 'GRID';
+  const notable = e.boss || e.recon || e.sead || e.aura || e.spawner || e.stealth;
+  if (notable || time > radioKillT + 2.5) {
+    radioKillT = time;
+    radioMsg(csrc + ': SPLASH ' + e.name + (e.recon ? ' — RECON DENIED' : e.boss ? ' — GRID SLAYER' : ''));
+  }
   addText(e.x, e.y - 14, '+' + b, '#ffb454');
   explode(e.x, e.y, e.r);
   sfx.boom(clamp(e.r / 12, 0.4, 2));
@@ -640,6 +666,8 @@ function startWave() {
   simRand = mulberry32(waveSeed ^ 0x9E3779B9); // combat stream — beginReplay reseeds here
   simStep = 0; simAcc = 0;
   groups.forEach(q => seen.add(q.type));
+  waveTypesLogged.clear();
+  radioMsg('ALL STATIONS: WAVE ' + wave + ' INBOUND — WEAPONS FREE');
   state = 'combat'; waveBanner = 2.2;
   el('btnWave').disabled = true;
   el('nextwave').innerHTML = '<b>WAVE ' + wave + '</b> — engagement in progress…';
@@ -719,7 +747,13 @@ function updEnemies(dt) {
       if (t.kind === 'radar' && dist(t, e) < t.range * (e.stealth ? 0.55 : 1)) { conf = true; break; }
       if (t.kind === 'optic' && dist(t, e) < t.range) { conf = true; break; }
     }
-    if (conf) e.revealT = 0.6; // track persistence on the datalink
+    if (conf) {
+      if (e.revealT <= 0 && state === 'combat' && !waveTypesLogged.has(e.type)) {
+        waveTypesLogged.add(e.type);
+        radioMsg('SENTINEL NET: TRACK CONFIRMED — ' + e.name);
+      }
+      e.revealT = 0.6; // track persistence on the datalink
+    }
     // Recon: survey run — cross the AO and exfiltrate; never attacks
     if (e.recon) {
       const a0 = Math.atan2(e.ty - e.y, e.tx - e.x);
@@ -731,6 +765,7 @@ function updEnemies(dt) {
         if (DIFFS[diffKey].adapt) {
           intelBoost = true; reconEscaped = true;
           addText(clamp(e.x, 60, W - 60), clamp(e.y, 40, H - 40), '⚠ RECON EXFILTRATED', '#ff9f43');
+          radioMsg('ALL STATIONS: RECON BIRD EXFILTRATED — EXPECT COORDINATED RAID');
           sfx.deny();
         }
       }
@@ -739,8 +774,8 @@ function updEnemies(dt) {
     // Specter: terminal dive near the wire
     if (e.alt === 'hi' && dist(e, BASE) < 260) {
       e.alt = 'lo'; e.spd *= 1.8; // terminal dive — attack speed
-
       addText(e.x, e.y - e.r - 10, 'TERMINAL DIVE', '#d8c7ff');
+      if (time > radioDiveT + 3) { radioDiveT = time; radioMsg('SENTINEL NET: ' + e.name + ' IN TERMINAL DIVE'); }
     }
     // Wasp SEAD: home on live emissions only — EMCON or offline emitters don't radiate
     if (e.sead && state === 'combat') {
@@ -763,6 +798,7 @@ function updEnemies(dt) {
             e.tw.struct--;
             if (e.tw.struct <= 0) {
               addText(e.tw.x, e.tw.y - 26, 'GENERATOR DESTROYED', '#ff4f4f');
+              radioMsg('WASP STRIKE: ' + e.tw.cs + ' DESTROYED — GRID DOWN');
               explode(e.tw.x, e.tw.y, 16);
               towers.splice(towers.indexOf(e.tw), 1);
               if (sel === e.tw) { sel = null; refreshDetail(); }
@@ -770,11 +806,13 @@ function updEnemies(dt) {
             } else {
               e.tw.offlineT = 10;
               addText(e.tw.x, e.tw.y - 26, 'GENERATOR HIT ' + e.tw.struct + '/3', '#ff9f43');
+              radioMsg('WASP STRIKE: ' + e.tw.cs + ' HIT — STRUCTURE ' + e.tw.struct + '/3');
               explode(e.x, e.y, e.r + 3);
             }
           } else {
             e.tw.offlineT = 8; e.tw.firing = false;
             addText(e.tw.x, e.tw.y - 26, 'SYSTEM OFFLINE', '#ff4f4f');
+            radioMsg('WASP STRIKE: ' + e.tw.cs + ' OFFLINE — 8 SECONDS');
             explode(e.x, e.y, e.r + 3);
           }
           sfx.boom(0.8);
@@ -810,6 +848,7 @@ function updEnemies(dt) {
       shake = Math.min(1.4, shake + 0.25 + e.dmg / 40);
       flash = Math.min(1, flash + 0.35 + e.dmg / 100);
       addText(e.x, e.y - 16, '-' + e.dmg + ' FOB', '#ff4f4f');
+      radioMsg('FOB AEGIS: PERIMETER IMPACT — INTEGRITY ' + Math.max(0, Math.round(baseHP)));
       sfx.baseHit();
       if (baseHP <= 0) { baseHP = 0; gameOver(false); }
     }
@@ -864,7 +903,7 @@ function updTowers(dt) {
         if (tg) {
           t.stock--; if (t.stock < t.cap && t.rb <= 0) t.rb = t.rebuild;
           SYS_STATS.falcon.shots++;
-          birds.push({ x: t.x, y: t.y - 8, tg, spd: 140, dmg: t.dmg, life: 7, a: Math.atan2(tg.y - t.y, tg.x - t.x), trail: 0, rearmT: 0 });
+          birds.push({ x: t.x, y: t.y - 8, tg, spd: 140, dmg: t.dmg, life: 7, a: Math.atan2(tg.y - t.y, tg.x - t.x), trail: 0, rearmT: 0, src: t });
           t.fx = 0.2; sfx.launch();
         }
       }
@@ -891,7 +930,7 @@ function updTowers(dt) {
           const pk = clamp(0.8 - (small ? 0.18 : 0) + (t.optic ? 0.15 : 0), 0.1, 0.95);
           const hit = simRand() < pk;
           let ex = t.tg.x + rand(-3, 3), ey = t.tg.y + rand(-3, 3);
-          if (hit) damage(t.tg, t.dmg * t.opticMul, true, 'vulcan');
+          if (hit) damage(t.tg, t.dmg * t.opticMul, true, 'vulcan', t);
           else { // round goes wide — tracer streaks past the target
             const ov = 14 + rand(0, 18), pa = t.aim + Math.PI / 2, sp = rand(-14, 14) * (small ? 1.2 : 0.8);
             ex = t.tg.x + Math.cos(t.aim) * ov + Math.cos(pa) * sp;
@@ -912,9 +951,9 @@ function updTowers(dt) {
             SYS_STATS.sam.shots++;
             t.cd = t.cdMax; t.fx = 0.25;
             projs.push({ x: t.x, y: t.y - 6, a: t.aim - 0.5, spd: 120, tg: t.tg,
-              dmg: t.dmg * t.opticMul, aoe: t.aoe, life: 4.5, dead: false });
+              dmg: t.dmg * t.opticMul, aoe: t.aoe, life: 4.5, dead: false, src: t });
             sfx.launch();
-          } else { t.dry = 0.5; }
+          } else { if (t.dry <= 0) radioMsg(t.cs + ': WINCHESTER — NO FUNDS FOR MISSILES'); t.dry = 0.5; }
         }
         break;
       }
@@ -928,13 +967,13 @@ function updTowers(dt) {
           if (t.lastTg !== t.tg) { t.ramp = 0; t.lastTg = t.tg; }
           t.ramp = Math.min(1, t.ramp + dt / t.rampT);
           const dps = lerp(t.dpsMin, t.dpsMax, t.ramp) * t.rofMul * t.opticMul;
-          damage(t.tg, dps * dt, false, 'laser');
+          damage(t.tg, dps * dt, false, 'laser', t);
           SYS_STATS.laser.shots += dt;
           t.firing = true; t.heat += dt;
           if (Math.random() < 0.35) parts.push({ x: t.tg.x + rand(-4, 4), y: t.tg.y + rand(-4, 4),
             vx: rand(-25, 25), vy: rand(-40, 0), life: 0.25, max: 0.25, size: 1.5, color: '#ffe9a0', drag: 0.95 });
           if (t.sndT <= 0) { sfx.laser(); t.sndT = 0.14; }
-          if (t.heat >= t.heatMax) { t.over = true; t.firing = false; addText(t.x, t.y - 24, 'OVERHEAT', '#ff9f43'); }
+          if (t.heat >= t.heatMax) { t.over = true; t.firing = false; addText(t.x, t.y - 24, 'OVERHEAT', '#ff9f43'); radioMsg(t.cs + ': OVERHEAT — COOLING'); }
         } else { t.firing = false; t.ramp = Math.max(0, t.ramp - dt); t.heat = Math.max(0, t.heat - dt * 1.4); }
         break;
       }
@@ -946,7 +985,7 @@ function updTowers(dt) {
           rings.push({ x: t.x, y: t.y, r: 8, max: t.range, life: 0.45, maxLife: 0.45, color: '#5fd8ff', lw: 3 });
           for (const e of enemies) {
             if (e.dead || e.alt === 'hi' || dist(t, e) > t.range) continue;
-            damage(e, t.dmg * (e.hardened ? 0.5 : 1), false, 'pulse');
+            damage(e, t.dmg * (e.hardened ? 0.5 : 1), false, 'pulse', t);
             if (!e.hardened) e.stunT = Math.max(e.stunT, 0.45);
           }
           sfx.zap();
@@ -979,7 +1018,7 @@ function updProjs(dt) {
         dm = p.dmg * 0.5;
         addText(p.x, p.y - 10, 'NEAR MISS', '#9fb2c4');
       }
-      for (const e of enemies) if (!e.dead && Math.hypot(e.x - p.x, e.y - p.y) <= p.aoe + e.r) damage(e, dm, false, 'sam');
+      for (const e of enemies) if (!e.dead && Math.hypot(e.x - p.x, e.y - p.y) <= p.aoe + e.r) damage(e, dm, false, 'sam', p.src);
       explode(p.x, p.y, 9); p.dead = true;
     } else if (p.life <= 0) { explode(p.x, p.y, 5); p.dead = true; }
   }
@@ -1001,7 +1040,7 @@ function updBirds(dt) {
     b.y += Math.sin(b.a) * b.spd * dt;
     if (b.tg && b.rearmT <= 0 && dist(b, b.tg) < b.tg.r + 7) {
       if (simRand() < 0.9) {
-        for (const e of enemies) if (!e.dead && Math.hypot(e.x - b.x, e.y - b.y) <= 20 + e.r) damage(e, b.dmg, false, 'falcon');
+        for (const e of enemies) if (!e.dead && Math.hypot(e.x - b.x, e.y - b.y) <= 20 + e.r) damage(e, b.dmg, false, 'falcon', b.src);
         explode(b.x, b.y, 8); b.dead = true;
       } else { // overshoot — come around for another pass
         b.rearmT = 0.55;
@@ -1042,6 +1081,8 @@ function updWaves(dt) {
     const bonus = 25 + wave * 6;
     cash += bonus; earned += bonus;
     addText(BASE.x, BASE.y - 80, 'WAVE CLEAR +' + bonus, '#7dffab');
+    radioMsg('FOB AEGIS: WAVE ' + wave + ' CLEAR — RESUPPLY +$' + bonus);
+    clockJumps++;
     sfx.cash();
     if (wave === LAST_WAVE && !endless) { gameOver(true); return; }
     const keep = DIFFS[diffKey].adapt ? DIFFS[diffKey].adapt.decay : 0.5;
@@ -1074,6 +1115,7 @@ function exchangeGrade() {
 }
 function gameOver(win) {
   state = win ? 'won' : 'over';
+  radioMsg(win ? 'ALL STATIONS: SECTOR SECURE — STAND DOWN' : 'FLASH FLASH FLASH — FOB AEGIS OVERRUN');
   const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
   const ss = String(Math.floor(elapsed % 60)).padStart(2, '0');
   const ex = exchangeGrade();
@@ -1602,6 +1644,22 @@ function render() {
     ctx.fillText(label, mouse.x, mouse.y - 24);
   }
   ctx.restore();
+  // mission clock + radio log (HUD, unshaken)
+  if (state !== 'menu') {
+    ctx.font = '10px IBM Plex Mono'; ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(125,255,171,0.5)';
+    ctx.fillText(clockStr() + ' LOCAL', 10, 28);
+    const rN = Math.min(6, radio.length);
+    for (let i = 0; i < rN; i++) {
+      const r = radio[radio.length - rN + i];
+      const age = time - r.born;
+      if (age > 10) continue;
+      ctx.globalAlpha = clamp(1.2 - age / 10, 0, 1) * 0.85;
+      ctx.fillStyle = '#060a08'; ctx.fillText(r.txt, 11, H - 92 + i * 13 + 1);
+      ctx.fillStyle = '#8fd8a8'; ctx.fillText(r.txt, 10, H - 92 + i * 13);
+    }
+    ctx.globalAlpha = 1;
+  }
   // banner / flash / pause
   if (waveBanner > 0) {
     ctx.globalAlpha = clamp(waveBanner, 0, 1);
@@ -1831,6 +1889,7 @@ function applySave(s) {
   cash = s.cash; wave = s.wave; endless = s.endless;
   kills = s.kills; earned = s.earned; elapsed = s.elapsed;
   spent = s.spent; destroyed = s.destroyed; repairSpent = 0; resetSys();
+  csCount = {}; radio = []; radioKillT = -9; radioDiveT = -9; waveTypesLogged.clear(); clockJumps = s.wave;
   axisKills = { ...s.ak }; axisLeaks = { ...s.al }; intelBoost = s.intel; reconEscaped = false; waveStartCode = ''; waveRec = null; simAcc = 0;
   towers = [];
   for (const st of s.towers) {
@@ -2004,9 +2063,11 @@ function toggleEmcon() {
     }
     sel.emcon = false;
     addText(sel.x, sel.y - 24, 'EMITTING', '#7dffab');
+    radioMsg(sel.cs + ': RADIATING');
   } else {
     sel.emcon = true; sel.tg = null;
     addText(sel.x, sel.y - 24, 'GONE SILENT', '#5fd8ff');
+    radioMsg(sel.cs + ': EMCON — GONE SILENT');
   }
   _pwr = ''; refreshDetail(); sfx.click();
 }
@@ -2307,6 +2368,7 @@ el('dEmcon').addEventListener('click', toggleEmcon);
 function restartGame() {
   enemies = []; towers = []; projs = []; birds = []; parts = []; texts = []; rings = []; tracers = [];
   spawnQ = []; seen.clear();
+  csCount = {}; radio = []; radioKillT = -9; radioDiveT = -9; waveTypesLogged.clear(); clockJumps = 0;
   cash = 260; wave = 0; kills = 0; earned = 0; elapsed = 0;
   endless = false; hpMul = 1; paused = false; speed = 1;
   spent = 0; destroyed = 0; repairSpent = 0; resetSys();

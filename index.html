@@ -255,6 +255,7 @@
       </div>
       <div class="ovrow">
         <button class="btn primary" id="btnEndless">▶ CONTINUE — ENDLESS</button>
+        <button class="btn" id="btnReplay">WATCH LAST WAVE</button>
         <button class="btn" id="btnRestart">↺ RESTART</button>
         <button class="btn" id="btnToMenu">⎗ LOAD CHECKPOINT</button>
       </div>
@@ -899,7 +900,7 @@ function updEnemies(dt) {
       addText(e.x, e.y - 16, '-' + e.dmg + ' FOB', '#ff4f4f');
       radioMsg('FOB AEGIS: PERIMETER IMPACT — INTEGRITY ' + Math.max(0, Math.round(baseHP)));
       sfx.baseHit();
-      if (baseHP <= 0) { baseHP = 0; gameOver(false); }
+      if (baseHP <= 0) { baseHP = 0; gameOver(false); return; } // stop: run over (or replay state restored)
     }
   }
   enemies = enemies.filter(e => !e.dead);
@@ -1127,6 +1128,7 @@ function updWaves(dt) {
     while (q.t <= 0 && q.left > 0) { spawnEnemy(q.type, q.edge); q.left--; q.t += q.interval; }
   }
   if (enemies.length === 0 && queuedLeft() === 0) {
+    if (replaying) { finishReplay(); return; }
     const bonus = 25 + wave * 6;
     cash += bonus; earned += bonus;
     addText(BASE.x, BASE.y - 80, 'WAVE CLEAR +' + bonus, '#7dffab');
@@ -1200,6 +1202,7 @@ function exchangeGrade() {
   return { r, g };
 }
 function gameOver(win) {
+  if (replaying) { finishReplay(); return; }
   state = win ? 'won' : 'over';
   radioMsg(win ? 'ALL STATIONS: SECTOR SECURE — STAND DOWN' : 'FLASH FLASH FLASH — FOB AEGIS OVERRUN');
   const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
@@ -1768,6 +1771,10 @@ function render() {
       ctx.fillStyle = '#8fd8a8'; ctx.fillText(r.txt, 10, H - 92 + i * 13);
     }
     ctx.globalAlpha = 1;
+    if (replaying) {
+      ctx.fillStyle = 'rgba(95,216,255,0.85)'; ctx.font = '700 16px Rajdhani, sans-serif'; ctx.textAlign = 'right';
+      ctx.fillText('REPLAY — ESC TO EXIT', W - 14, 30);
+    }
   }
   // banner / flash / pause
   if (waveBanner > 0) {
@@ -2022,6 +2029,81 @@ function applySave(s) {
   prepareNext();
   el('tipbar').innerHTML = 'CHECKPOINT LOADED — resuming before wave ' + (wave + 1) + ' · ' + DIFFS[diffKey].name;
 }
+/* ================= wave replay =================
+   beginReplay re-simulates the last wave from its wave record (checkpoint
+   code + seed + groups + env + input log). Determinism does the rest. The
+   run snapshot exists so an early exit (ESC) can restore the end state. */
+let runSnap = null, replayIdx = 0;
+function copyTowerFlat(t) { return { ...t, tg: null, lastTg: null }; }
+function snapshotRun() {
+  runSnap = {
+    state, cash, baseHP, baseMax, wave, kills, earned, elapsed, endless,
+    hpMul, spdMul, spent, destroyed, repairSpent, intelBoost, reconEscaped,
+    diffKey, clockJumps, waveStartCode,
+    env: { ...env }, nextEnv: { ...nextEnv },
+    SYS_STATS: JSON.parse(JSON.stringify(SYS_STATS)),
+    axisKills: { ...axisKills }, axisLeaks: { ...axisLeaks },
+    towers: towers.map(copyTowerFlat),
+    seen: [...seen],
+    nextGroups: nextGroups ? nextGroups.map(q => ({ ...q })) : null,
+    csCount: { ...csCount },
+    radio: radio.map(r => ({ ...r })),
+    killPts: killPts.map(p => ({ ...p })), seadPts: seadPts.map(p => ({ ...p })),
+    killValAxis: { ...killValAxis }, leakDmgAxis: { ...leakDmgAxis }, reconExfilN,
+  };
+}
+function restoreRun() {
+  const s = runSnap; runSnap = null;
+  state = s.state; cash = s.cash; baseHP = s.baseHP; baseMax = s.baseMax;
+  wave = s.wave; kills = s.kills; earned = s.earned; elapsed = s.elapsed;
+  endless = s.endless; hpMul = s.hpMul; spdMul = s.spdMul;
+  spent = s.spent; destroyed = s.destroyed; repairSpent = s.repairSpent;
+  intelBoost = s.intelBoost; reconEscaped = s.reconEscaped;
+  diffKey = s.diffKey; clockJumps = s.clockJumps; waveStartCode = s.waveStartCode;
+  env = { ...s.env }; nextEnv = { ...s.nextEnv };
+  SYS_STATS = s.SYS_STATS;
+  axisKills = s.axisKills; axisLeaks = s.axisLeaks;
+  towers = s.towers;
+  seen.clear(); s.seen.forEach(x => seen.add(x));
+  nextGroups = s.nextGroups; csCount = s.csCount; radio = s.radio;
+  killPts = s.killPts; seadPts = s.seadPts;
+  killValAxis = s.killValAxis; leakDmgAxis = s.leakDmgAxis; reconExfilN = s.reconExfilN;
+  enemies = []; projs = []; birds = []; parts = []; texts = []; rings = []; tracers = []; spawnQ = [];
+  placing = null; sel = null; hoverT = null; shake = 0; flash = 0; waveBanner = 0;
+  paused = false; speed = 1; simAcc = 0;
+  el('btnSpeed').textContent = '1×'; el('btnPause').textContent = '❚❚';
+  el('ovPause').classList.add('hide');
+  _cash = -1; _hp = -1; _wave = ''; _host = ''; _pwr = ''; _xr = '';
+  refreshDetail();
+}
+function beginReplay() {
+  if (!waveRec || replaying) return;
+  const rec = waveRec;
+  snapshotRun();
+  replaying = true;
+  try { applySave(decodeSave(rec.code)); }
+  catch (e) { replaying = false; restoreRun(); el('ovDone').classList.remove('hide'); return; }
+  waveRec = rec; // applySave clears it; the record survives for repeat viewings
+  wave++;
+  hpMul = rec.hpMul; spdMul = rec.spdMul;
+  env = computeEnv(rec.env.night, rec.env.wx);
+  spawnQ = rec.groups.map(q => ({ ...q, t: q.delay, left: q.count }));
+  waveTypesLogged.clear();
+  radioMsg('REPLAY: WAVE ' + wave + ' — AS FOUGHT');
+  simRand = mulberry32(rec.seed ^ 0x9E3779B9);
+  simStep = 0; simAcc = 0; replayIdx = 0;
+  state = 'combat'; waveBanner = 2.2;
+  el('btnWave').disabled = true;
+  el('ovDone').classList.add('hide');
+  el('nextwave').innerHTML = '<b>REPLAY</b> — wave ' + wave + ' as fought · ESC exits';
+}
+function finishReplay() {
+  replaying = false;
+  restoreRun();
+  el('btnWave').disabled = true;
+  el('ovDone').classList.remove('hide');
+}
+
 let saveCode = '', saveTick = 0, saveFlashT = null;
 function copyText(code, btn, restoreLabel) {
   const done = () => {
@@ -2070,7 +2152,7 @@ function buildShop() {
   });
 }
 function selectShop(k) {
-  if (state === 'menu' || state === 'over' || state === 'won') return;
+  if (replaying || state === 'menu' || state === 'over' || state === 'won') return;
   if (cash < TT[k].cost) { sfx.deny(); return; }
   placing = (placing === k) ? null : k;
   sel = null; refreshDetail();
@@ -2140,51 +2222,98 @@ function buildPrioOptions() {
   pr.innerHTML = html;
   pr.addEventListener('change', () => {
     if (!sel) return;
-    sel.prio = pr.value || null;
-    sel.tg = null;
+    setPrioT(sel, pr.value);
     refreshDetail(); sfx.click();
   });
 }
+/* Action cores: shared by the UI handlers and the replay applier. They
+   mutate sim state only (no DOM, no sound) and self-record to the wave's
+   input log while live combat is running. */
+function recAction(a, data) {
+  if (state === 'combat' && waveRec && !replaying) waveRec.actions.push({ s: simStep, a, ...data });
+}
+function placeTower(k, x, y) {
+  cash -= TT[k].cost;
+  addSpend(k, TT[k].cost);
+  _pwr = '';
+  recAction('place', { k, x, y });
+  towers.push(makeTower(k, x, y));
+}
+function sellTower(t) {
+  recAction('sell', { i: towers.indexOf(t) });
+  const refund = Math.floor(t.invested * 0.7);
+  cash += refund;
+  spent -= refund; if (SYS_STATS[t.k]) SYS_STATS[t.k].spent -= refund;
+  addText(t.x, t.y - 20, '+' + refund, '#ffb454');
+  towers = towers.filter(x => x !== t);
+}
+function upgradeTower(t) {
+  recAction('up', { i: towers.indexOf(t) });
+  const c = upCost(t);
+  cash -= c; t.invested += c; t.level++;
+  addSpend(t.k, c);
+  applyStats(t);
+  addText(t.x, t.y - 26, 'MK-' + t.level, '#7dffab');
+}
+function cycleModeT(t) {
+  recAction('mode', { i: towers.indexOf(t) });
+  t.mode = MODE_ORDER[(MODE_ORDER.indexOf(t.mode) + 1) % MODE_ORDER.length];
+  t.tg = null;
+}
+function setPrioT(t, v) {
+  recAction('prio', { i: towers.indexOf(t), v: v || '' });
+  t.prio = v || null;
+  t.tg = null;
+}
+function toggleEmconT(t) {
+  if (t.emcon && powerUsed() + TT[t.k].draw > powerCap()) return false;
+  recAction('em', { i: towers.indexOf(t) });
+  if (t.emcon) {
+    t.emcon = false;
+    addText(t.x, t.y - 24, 'EMITTING', '#7dffab');
+    radioMsg(t.cs + ': RADIATING');
+  } else {
+    t.emcon = true; t.tg = null;
+    addText(t.x, t.y - 24, 'GONE SILENT', '#5fd8ff');
+    radioMsg(t.cs + ': EMCON — GONE SILENT');
+  }
+  _pwr = '';
+  return true;
+}
+function applyAction(a) {
+  if (a.a === 'place') { placeTower(a.k, a.x, a.y); return; }
+  const t = towers[a.i];
+  if (!t) return;
+  if (a.a === 'sell') sellTower(t);
+  else if (a.a === 'up') upgradeTower(t);
+  else if (a.a === 'mode') cycleModeT(t);
+  else if (a.a === 'prio') setPrioT(t, a.v);
+  else if (a.a === 'em') toggleEmconT(t);
+}
+
 function doUpgrade() {
   if (!sel || sel.level >= 3 || sel.k === 'gen') return;
-  const c = upCost(sel);
-  if (cash < c) { sfx.deny(); return; }
-  cash -= c; sel.invested += c; sel.level++;
-  addSpend(sel.k, c);
-  applyStats(sel);
-  addText(sel.x, sel.y - 26, 'MK-' + sel.level, '#7dffab');
+  if (cash < upCost(sel)) { sfx.deny(); return; }
+  upgradeTower(sel);
   sfx.cash(); refreshDetail();
 }
 function doSell() {
   if (!sel) return;
-  const refund = Math.floor(sel.invested * 0.7);
-  cash += refund;
-  spent -= refund; if (SYS_STATS[sel.k]) SYS_STATS[sel.k].spent -= refund;
-  addText(sel.x, sel.y - 20, '+' + refund, '#ffb454');
-  towers = towers.filter(t => t !== sel);
+  sellTower(sel);
   sel = null; refreshDetail(); sfx.click();
 }
 function isEmitter(t) { return t && (t.kind === 'radar' || t.kind === 'jam' || t.kind === 'sam'); }
 function toggleEmcon() {
   if (!isEmitter(sel)) return;
-  if (sel.emcon) {
-    if (powerUsed() + TT[sel.k].draw > powerCap()) {
-      addText(sel.x, sel.y - 24, 'NO GRID POWER', '#ff4f4f'); sfx.deny(); return;
-    }
-    sel.emcon = false;
-    addText(sel.x, sel.y - 24, 'EMITTING', '#7dffab');
-    radioMsg(sel.cs + ': RADIATING');
-  } else {
-    sel.emcon = true; sel.tg = null;
-    addText(sel.x, sel.y - 24, 'GONE SILENT', '#5fd8ff');
-    radioMsg(sel.cs + ': EMCON — GONE SILENT');
+  if (!toggleEmconT(sel)) {
+    addText(sel.x, sel.y - 24, 'NO GRID POWER', '#ff4f4f'); sfx.deny(); return;
   }
-  _pwr = ''; refreshDetail(); sfx.click();
+  refreshDetail(); sfx.click();
 }
 function cycleMode() {
   if (!sel) return;
-  sel.mode = MODE_ORDER[(MODE_ORDER.indexOf(sel.mode) + 1) % MODE_ORDER.length];
-  sel.tg = null; refreshDetail(); sfx.click();
+  cycleModeT(sel);
+  refreshDetail(); sfx.click();
 }
 
 function renderPreview() {
@@ -2316,17 +2445,14 @@ cv.addEventListener('pointermove', ev => {
 cv.addEventListener('pointerleave', () => { mouse.in = false; hoverT = null; });
 cv.addEventListener('pointerdown', ev => {
   initAudio(); if (AC && AC.state === 'suspended') AC.resume();
-  if (state === 'menu' || state === 'over' || state === 'won') return;
+  if (replaying || state === 'menu' || state === 'over' || state === 'won') return;
   const p = canvasXY(ev);
   if (placing) {
     const d = TT[placing];
     const hasPwr = d.draw === 0 || powerUsed() + d.draw <= powerCap();
     const hasCov = !DIFFS[diffKey].fieldPwr || d.draw === 0 || genCovered(p.x, p.y);
     if (validPlace(p.x, p.y) && cash >= d.cost && hasPwr && hasCov) {
-      cash -= TT[placing].cost;
-      addSpend(placing, TT[placing].cost);
-      _pwr = '';
-      towers.push(makeTower(placing, p.x, p.y));
+      placeTower(placing, p.x, p.y);
       sfx.click();
       if (!ev.shiftKey) {
         placing = null;
@@ -2357,6 +2483,13 @@ document.addEventListener('keydown', ev => {
   if (state === 'menu') { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); el('btnStart').click(); } return; }
   if (state === 'over' || state === 'won') return;
   const k = ev.key.toLowerCase();
+  if (replaying) { // spectator controls only
+    if (k === 'escape') finishReplay();
+    else if (k === ' ') { ev.preventDefault(); togglePause(); }
+    else if (k === 'f') toggleSpeed();
+    else if (k === 'p') togglePause();
+    return;
+  }
   if (k >= '1' && k <= '9') selectShop(TKEYS[+k - 1]);
   else if (k === 'r') doRepair();
   else if (k === 'escape') { placing = null; sel = null; refreshDetail();
@@ -2397,6 +2530,7 @@ el('btnPauseSave').addEventListener('click', () => {
   copyText(code, el('btnPauseSave'), '⎘ COPY CHECKPOINT');
 });
 el('btnPauseRestart').addEventListener('click', () => {
+  if (replaying) { finishReplay(); return; } // exit the replay instead of nuking the ended run
   if (Date.now() < restartArm) {
     paused = false; el('ovPause').classList.add('hide'); el('btnPause').textContent = '❚❚';
     restartGame(); sfx.horn();
@@ -2407,6 +2541,7 @@ el('btnPauseRestart').addEventListener('click', () => {
   }
 });
 el('btnPauseMenu').addEventListener('click', () => {
+  if (replaying) { finishReplay(); return; }
   paused = false; el('ovPause').classList.add('hide'); el('btnPause').textContent = '❚❚';
   state = 'menu';
   el('ovMenu').classList.remove('hide');
@@ -2468,6 +2603,7 @@ el('btnStart').addEventListener('click', () => {
   sfx.horn();
 });
 el('btnRestart').addEventListener('click', () => restartGame());
+el('btnReplay').addEventListener('click', () => beginReplay());
 el('btnEndless').addEventListener('click', () => {
   endless = true;
   el('ovDone').classList.add('hide');
@@ -2526,8 +2662,13 @@ function frame(now) {
     simAcc = Math.min(simAcc + dt * speed, 0.25);
     while (simAcc >= SIM_DT) {
       simAcc -= SIM_DT;
+      if (replaying && waveRec) {
+        while (replayIdx < waveRec.actions.length && waveRec.actions[replayIdx].s <= simStep)
+          applyAction(waveRec.actions[replayIdx++]);
+      }
       stepSim();
       if (state === 'over' || state === 'won') { simAcc = 0; break; }
+      if (!replaying && state !== 'combat' && state !== 'build') { simAcc = 0; break; }
     }
   }
   refreshTop();

@@ -7,10 +7,9 @@ at full speed.
 ## 1. Hosting (pick one, all free-tier friendly)
 
 - **Cloudflare Pages** — dashboard → Workers & Pages → Create → Pages →
-  "Upload assets" → drag `iron-perimeter-v8.html` in, rename it `index.html`.
-  Global CDN, custom domains, done in ~2 minutes. (Recommended.)
-- **Netlify Drop** — https://app.netlify.com/drop → drag the file in
-  (renamed `index.html`).
+  "Upload assets" → drag `index.html` in. Global CDN, custom domains, done
+  in ~2 minutes. (Recommended.)
+- **Netlify Drop** — https://app.netlify.com/drop → drag `index.html` in.
 - **GitHub Pages** — put `index.html` in a repo, enable Pages in settings.
 
 "Snappy" is inherent: ~95 KB total, one request (plus Google Fonts, which

@@ -1,9 +1,10 @@
 # IRON PERIMETER (DroneDefender)
 
 Counter-UAS tower-defense game. The entire game is one self-contained file,
-`iron-perimeter-v8.html` (no build step, no assets, no dependencies beyond
-Google Fonts, which degrade gracefully). `DEPLOY.md` documents hosting and
-the leaderboard backends.
+`index.html` (no build step, no assets, no dependencies beyond Google Fonts,
+which degrade gracefully). `DEPLOY.md` documents hosting and the leaderboard
+backends. `PLANS.md` tracks the development roadmap and open tuning
+questions — keep it current as plans evolve.
 
 ## Project Rules
 
@@ -20,7 +21,7 @@ glyphs (power bolt, checkpoint chip, pause bars, etc.). Those are existing
 gameplay UI and stay as-is; the rule applies to everything we write from now
 on (code, comments, commits, docs, chat).
 
-## Architecture map (iron-perimeter-v8.html)
+## Architecture map (index.html)
 
 - CSS + markup: top status rail, canvas stage with three overlays
   (menu / pause / end-of-run), intel strip, shop rack + detail panel.

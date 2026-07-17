@@ -4,18 +4,18 @@ Living document. Update as plans evolve (project rule: keep track of plans).
 
 ## Roadmap (agreed 2026-07-17)
 
-1. DONE-in-progress — Housekeeping: rename to index.html, docs, freeze the
-   current game as SKIRMISH mode.
-2. IN PROGRESS — Immersion + determinism layer (v0.9):
+1. DONE — Housekeeping: rename to index.html, docs, SKIRMISH/RAID split.
+2. DONE (awaiting playtest) — Immersion + determinism layer (v0.9):
    - Fixed-timestep simulation + seeded sim RNG (foundation for replays and
      later async PvP).
    - Radio log with tower callsigns + mission clock.
    - Environment: day/night cycle + weather (STANDARD and above).
    - After-action engagement map on the end screen.
    - Instant replay of the last wave from the end screen.
-3. IN PROGRESS — RAID mode v1: design a drone raid under budget and fly it
-   against AI defense grids (presets, procedural, or any pasted IP6
-   checkpoint code). Offense X-RATE scoring.
+3. DONE (awaiting playtest) — RAID mode v1: design a drone raid under
+   budget and fly it against AI defense grids (presets, procedural, or any
+   pasted IP6 checkpoint code). Offense X-RATE scoring, REWATCH,
+   RE-DESIGN. Headless suite: node test/run.js (45 checks).
 4. LATER — Campaign/theater layer: 3-5 FOBs on a front, system inventory,
    logistics/convoys, doctrine auto-resolve, enemy procurement adaptation
    (composition adapts to SYS_STATS kills, not just routing).
@@ -63,10 +63,17 @@ Living document. Update as plans evolve (project rule: keep track of plans).
 ## Open tuning questions
 
 - Raid budget multiplier (1.1x) and defender wallet - first-pass numbers,
-  tune after playtests.
+  tune after playtests. Harness data point: vs GUN LINE ($790 grid,
+  $1120 budget), a piecemeal $248 raid scored zero while a time-on-target
+  $298 package (mules leading, escorts and specter dives synced, hornet
+  saturation last) destroyed the FOB losing 12/20 airframes - raid rate
+  2.68, grade S. Timing dominates; budgets may even be generous.
 - Whether raids should cost extra for night/weather selection.
 - Radio log density (throttle currently ~2.5s between routine kill calls).
 - Env modifier magnitudes above.
+- Day-phase display nuance: the mission clock also advances with real
+  elapsed time, so the displayed phase can drift slightly from the
+  wave-locked conditions; conditions are frozen per wave as announced.
 
 ## Test checklist (manual, after phase 2-3)
 

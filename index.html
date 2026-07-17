@@ -329,6 +329,36 @@ function radioMsg(txt) {
   radio.push({ txt: '[' + clockStr().slice(-5) + '] ' + txt, born: time });
   if (radio.length > 30) radio.shift();
 }
+
+/* ---------- environment: day/night cycle + weather ----------
+   Sensor-side only, gated by DIFFS[..].env (EASY is always clear daylight).
+   Radar is deliberately immune to all of it — that is its niche. */
+const WXTAB = {
+  CLEAR: { sense: 1, optic: 1, laser: 1 },
+  RAIN:  { sense: 0.9, optic: 0.8, laser: 0.75 },
+  FOG:   { sense: 0.7, optic: 0.55, laser: 0.85 },
+};
+const NIGHT_MUL = { sense: 0.8, optic: 0.85, laser: 1 };
+let env = { night: false, wx: 'CLEAR', sense: 1, optic: 1, laser: 1 };
+let nextEnv = { night: false, wx: 'CLEAR' };
+function envEnabled() { return !!DIFFS[diffKey].env; }
+function isNightAt(mins) { const h = (mins / 60) % 24; return h < 5.5 || h >= 19.5; }
+function computeEnv(night, wx) {
+  const w = WXTAB[wx] || WXTAB.CLEAR;
+  const n = night ? NIGHT_MUL : WXTAB.CLEAR;
+  return { night, wx,
+    sense: Math.max(0.55, w.sense * n.sense),
+    optic: Math.max(0.45, w.optic * n.optic),
+    laser: Math.max(0.6, w.laser * n.laser) };
+}
+function rollNextEnv() {
+  if (!envEnabled()) { nextEnv = { night: false, wx: 'CLEAR' }; }
+  else {
+    const r = Math.random(); // pre-wave roll; the wave record freezes the result
+    nextEnv = { night: isNightAt(clockMinutes()), wx: r < 0.6 ? 'CLEAR' : r < 0.85 ? 'RAIN' : 'FOG' };
+  }
+  env = computeEnv(nextEnv.night, nextEnv.wx); // conditions are live through the build lull too
+}
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -472,15 +502,15 @@ function addSpend(k, amt) { spent += amt; if (SYS_STATS[k]) SYS_STATS[k].spent +
 let diffHp = 1, diffBounty = 1, diffSpd = 1, diffKey = 'std';
 const DKEYS = ['ez', 'std', 'vet', 'ngt'];
 const DIFFS = {
-  ez:  { name: 'EASY', hp: 0.88, spd: 0.95, b: 1.1, base: 100, adapt: null, fieldPwr: false,
+  ez:  { name: 'EASY', hp: 0.88, spd: 0.95, b: 1.1, base: 100, adapt: null, fieldPwr: false, env: false,
     desc: 'Scripted attack axes, forgiving economy, slower drones. Learn the systems without the enemy learning you.' },
-  std: { name: 'STANDARD', hp: 1.0, spd: 1.0, b: 1.0, base: 100, fieldPwr: false,
+  std: { name: 'STANDARD', hp: 1.0, spd: 1.0, b: 1.0, base: 100, fieldPwr: false, env: true,
     adapt: { cap: 0.5, ramp: 0.08, focus: 0.55, comp: 0.8, reconStart: 4, reconEvery: 3, decay: 0.55, spdBonus: 0 },
-    desc: 'ADAPTIVE ENEMY: they log where drones die and where they leak through, and slowly re-route raids around your kill zones. Recon Sparrows sharpen their picture — down them.' },
-  vet: { name: 'VETERAN', hp: 1.1, spd: 1.08, b: 0.9, base: 80, fieldPwr: true,
+    desc: 'ADAPTIVE ENEMY: they log where drones die and where they leak through, and slowly re-route raids around your kill zones. Recon Sparrows sharpen their picture — down them. Night and weather now degrade optics, lasers and organic sensing; radar shrugs it all off.' },
+  vet: { name: 'VETERAN', hp: 1.1, spd: 1.08, b: 0.9, base: 80, fieldPwr: true, env: true,
     adapt: { cap: 0.6, ramp: 0.1, focus: 0.7, comp: 0.75, reconStart: 4, reconEvery: 2, decay: 0.65, spdBonus: 0.04 },
     desc: 'FAST LEARNERS + EXPEDITIONARY POWER: recon every other wave, longer memory, coordinated raids arrive quicker. The FOB grid reaches 250m — field generators beyond, and Wasps hunt them.' },
-  ngt: { name: 'NIGHTMARE', hp: 1.3, spd: 1.2, b: 0.75, base: 60, fieldPwr: true,
+  ngt: { name: 'NIGHTMARE', hp: 1.3, spd: 1.2, b: 0.75, base: 60, fieldPwr: true, env: true,
     adapt: { cap: 0.8, ramp: 0.14, focus: 0.85, comp: 0.6, reconStart: 3, reconEvery: 2, decay: 0.75, spdBonus: 0.12 },
     desc: 'A THINKING OPPONENT AT SPEED: near-total re-routing, elephant memory, compressed +12%-speed raids after every recon leak. Fast drones, 60-integrity FOB. Grid architects only.' },
 };
@@ -608,6 +638,7 @@ function genEndless(n) {
 }
 function prepareNext() {
   nextGroups = (wave < LAST_WAVE && !endless) ? WAVES[wave] : genEndless(wave + 1);
+  rollNextEnv();
   renderPreview();
 }
 function axisWeights() {
@@ -662,6 +693,7 @@ function startWave() {
   }
   spawnQ = groups.map(q => ({ ...q, t: q.delay, left: q.count }));
   waveRec = { code: waveStartCode, seed: waveSeed, hpMul, spdMul,
+    env: { night: env.night, wx: env.wx },
     groups: groups.map(q => ({ ...q })), actions: [] };
   simRand = mulberry32(waveSeed ^ 0x9E3779B9); // combat stream — beginReplay reseeds here
   simStep = 0; simAcc = 0;
@@ -741,11 +773,11 @@ function updEnemies(dt) {
     // SENSOR FUSION — a weapon can only engage a confirmed track:
     //   FOB organic sensors (stealth seen at 55%), search radar (stealth burn-through
     //   at 55% of radar range), or EO/IR optic (sees stealth at full range).
-    let conf = dist(e, BASE) < BASE.sense * (e.stealth ? 0.55 : 1);
+    let conf = dist(e, BASE) < BASE.sense * (e.stealth ? 0.55 : 1) * env.sense;
     if (!conf) for (const t of towers) {
       if (t.offlineT > 0 || t.emcon || !t.powered) continue;
       if (t.kind === 'radar' && dist(t, e) < t.range * (e.stealth ? 0.55 : 1)) { conf = true; break; }
-      if (t.kind === 'optic' && dist(t, e) < t.range) { conf = true; break; }
+      if (t.kind === 'optic' && dist(t, e) < t.range * env.optic) { conf = true; break; }
     }
     if (conf) {
       if (e.revealT <= 0 && state === 'combat' && !waveTypesLogged.has(e.type)) {
@@ -874,7 +906,7 @@ function updTowers(dt) {
   // ORACLE optic coverage: type-priority targeting + fire-control bonus
   for (const o of towers) if (o.kind === 'optic' && o.offlineT <= 0 && o.powered)
     for (const t of towers) {
-      if (t === o || dist(t, o) >= o.range) continue;
+      if (t === o || dist(t, o) >= o.range * env.optic) continue;
       if (t.kind === 'gun' || t.kind === 'sam' || t.kind === 'laser') {
         t.optic = true;
         t.opticMul = Math.max(t.opticMul, 1 + o.dmgBuff);
@@ -966,7 +998,7 @@ function updTowers(dt) {
         if (t.tg && state === 'combat') {
           if (t.lastTg !== t.tg) { t.ramp = 0; t.lastTg = t.tg; }
           t.ramp = Math.min(1, t.ramp + dt / t.rampT);
-          const dps = lerp(t.dpsMin, t.dpsMax, t.ramp) * t.rofMul * t.opticMul;
+          const dps = lerp(t.dpsMin, t.dpsMax, t.ramp) * t.rofMul * t.opticMul * env.laser;
           damage(t.tg, dps * dt, false, 'laser', t);
           SYS_STATS.laser.shots += dt;
           t.firing = true; t.heat += dt;
@@ -1332,7 +1364,7 @@ function drawEnemy(e) {
 }
 
 function drawTower(t, isSel) {
-  const effR = t.range * t.buffMulOn;
+  const effR = t.range * t.buffMulOn * (t.kind === 'optic' ? env.optic : 1);
   if ((isSel || t === hoverT) && t.range > 0) {
     ctx.fillStyle = 'rgba(125,255,171,0.045)';
     ctx.beginPath(); ctx.arc(t.x, t.y, effR, 0, TAU); ctx.fill();
@@ -1548,7 +1580,7 @@ function drawAuras() {
       ctx.beginPath(); ctx.arc(t.x, t.y, t.range * t.buffMulOn, 0, TAU); ctx.fill();
     } else if (t.kind === 'optic') {
       ctx.setLineDash([2, 7]); ctx.strokeStyle = 'rgba(255,217,160,0.22)'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.arc(t.x, t.y, t.range, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(t.x, t.y, t.range * env.optic, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
     } else if (t.kind === 'radar') {
       ctx.strokeStyle = 'rgba(95,216,255,0.16)'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.arc(t.x, t.y, t.range, 0, TAU); ctx.stroke();
@@ -1644,11 +1676,33 @@ function render() {
     ctx.fillText(label, mouse.x, mouse.y - 24);
   }
   ctx.restore();
+  // weather + night pass (over the field, under the HUD)
+  if (env.night) { ctx.fillStyle = 'rgba(10,16,46,0.20)'; ctx.fillRect(0, 0, W, H); }
+  if (env.wx === 'FOG') { ctx.fillStyle = 'rgba(150,165,150,0.10)'; ctx.fillRect(0, 0, W, H); }
+  if (env.wx === 'RAIN') {
+    ctx.strokeStyle = 'rgba(160,190,200,0.13)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < 70; i++) {
+      const sx = (i * 337.7) % W;
+      const sy = ((i * 191.3) + time * 340) % (H + 40) - 20;
+      ctx.moveTo(sx, sy); ctx.lineTo(sx - 3, sy + 12);
+    }
+    ctx.stroke();
+  }
   // mission clock + radio log (HUD, unshaken)
   if (state !== 'menu') {
     ctx.font = '10px IBM Plex Mono'; ctx.textAlign = 'left';
     ctx.fillStyle = 'rgba(125,255,171,0.5)';
-    ctx.fillText(clockStr() + ' LOCAL', 10, 28);
+    ctx.fillText(clockStr() + ' LOCAL' + (envEnabled() ? ' · ' + (env.night ? 'NIGHT' : 'DAY') +
+      (env.wx !== 'CLEAR' ? ' · ' + env.wx : '') : ''), 10, 28);
+    if (env.sense < 1 || env.optic < 1 || env.laser < 1) {
+      const bits = [];
+      if (env.sense < 1) bits.push('SENSE ' + Math.round((env.sense - 1) * 100) + '%');
+      if (env.optic < 1) bits.push('EO/IR ' + Math.round((env.optic - 1) * 100) + '%');
+      if (env.laser < 1) bits.push('HEL ' + Math.round((env.laser - 1) * 100) + '%');
+      ctx.fillStyle = 'rgba(95,216,255,0.45)';
+      ctx.fillText(bits.join(' · '), 10, 41);
+    }
     const rN = Math.min(6, radio.length);
     for (let i = 0; i < rN; i++) {
       const r = radio[radio.length - rN + i];
@@ -1990,7 +2044,7 @@ function statLine(t) {
     case 'jammer': return emconLine(t) + 'SLOW ' + Math.round(t.slow * 100) + '% + drift in field\nRANGE ' + effR + link + (t.level >= 3 ? '\nBurn-through: slows fiber drones 45%.' : '\nNo effect on fiber-optic (Viper).');
     case 'falcon': return 'INTERCEPTORS ' + t.stock + '/' + t.cap + ' · RAM ' + t.dmg + ' dmg\nENGAGE RANGE ' + effR + link + '\nAirframe rebuild ' + t.rebuild.toFixed(1) + 's, free.';
     case 'radar': return emconLine(t) + 'COVERAGE ' + effR + '\n+' + Math.round((t.buffMul - 1) * 100) + '% range to systems inside\nBurns through stealth · datalinks track.';
-    case 'optic': return 'COVERAGE ' + Math.round(t.range) + ' · fire-control +' + Math.round(t.dmgBuff * 100) + '% DMG\nLinked guns/SAMs/lasers can hunt a\nchosen drone TYPE & ignore decoys.';
+    case 'optic': return 'COVERAGE ' + Math.round(t.range * env.optic) + (env.optic < 1 ? ' (WX-DEGRADED)' : '') + ' · fire-control +' + Math.round(t.dmgBuff * 100) + '% DMG\nLinked guns/SAMs/lasers can hunt a\nchosen drone TYPE & ignore decoys.';
     case 'gen': return 'GRID OUTPUT +' + TT.gen.pwr + ' POWER' +
       (DIFFS[diffKey].fieldPwr ? ' · COVERAGE ' + TT.gen.covR + '\nSTRUCTURE ' + t.struct + '/3 — Wasps strike field power.' : '\nFOB baseline supply: 8') +
       '\nGrid: ' + powerUsed() + ' / ' + powerCap() + ' in use.';
@@ -2094,6 +2148,10 @@ function renderPreview() {
     if (isNew && !newBrief) newBrief = ' — <span class="new">' + d.name + ':</span> ' + d.brief;
   }
   html += bits.join(' · ');
+  if (envEnabled()) {
+    const cond = (nextEnv.night ? 'NIGHT' : 'DAY') + (nextEnv.wx !== 'CLEAR' ? '+' + nextEnv.wx : '');
+    html += ' · <span style="color:var(--cyan)">COND: ' + cond + '</span>';
+  }
   if (flank) html += ' · <span style="color:var(--red)">FLANKING AXES</span>';
   if (DIFFS[diffKey].adapt && wave >= 1) {
     const pa = primaryAxis();
@@ -2134,6 +2192,8 @@ const TIPS = [
   'Selling refunds 70% — repositioning the grid between waves is a legitimate tactic.',
   'The <b>⎘ chip</b> up top is a checkpoint code: click to copy, paste on the start screen to replay a wave with different tactics — or send it to someone else.',
   'Hold <b>SHIFT</b> while placing to build several. Press <b>T</b> to change a system\'s targeting priority.',
+  'Weather is a sensor problem: <b>RAIN and FOG</b> choke EO/IR and lasers, <b>NIGHT</b> shortens the FOB\'s organic sensing — radar does not care. Check CONDITIONS in the intel strip.',
+  'Night raids favor the attacker. When the next wave is <b>NIGHT</b>, lean on SENTINEL radar coverage over ORACLE optics.',
 ];
 let tipIdx = 0;
 setInterval(() => {

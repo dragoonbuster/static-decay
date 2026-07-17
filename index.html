@@ -296,6 +296,21 @@ const BASE = { x: 1128, y: 360, r: 54, sense: 260 };
 /* ---------- helpers ---------- */
 const rand = (a, b) => a + Math.random() * (b - a);
 const ri = (a, b) => Math.floor(rand(a, b + 1));
+/* Seeded sim stream. RULE: anything that affects simulation outcome rolls
+   on simRand/sr/sri (so a recorded wave replays identically); rand/ri and
+   Math.random are for cosmetics only. */
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+let simRand = mulberry32(1);
+const sr = (a, b) => a + simRand() * (b - a);
+const sri = (a, b) => Math.floor(sr(a, b + 1));
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -455,6 +470,7 @@ let axisKills = { left: 0, top: 0, bottom: 0 };
 let axisLeaks = { left: 0, top: 0, bottom: 0 };
 let intelBoost = false, reconEscaped = false;
 let waveStartCode = '';
+let waveRec = null; // last wave's replay record: code + seed + groups + input log
 let enemies = [], towers = [], projs = [], birds = [], parts = [], texts = [], rings = [], tracers = [];
 let spawnQ = [], nextGroups = null;
 let placing = null, sel = null, hoverT = null;
@@ -467,15 +483,15 @@ function spawnEnemy(type, edge, px, py) {
   const d = ETYPES[type];
   let x, y;
   if (px !== undefined) { x = px; y = py; }
-  else if (edge === 'top') { x = rand(70, 760); y = -34; }
-  else if (edge === 'bottom') { x = rand(70, 760); y = H + 34; }
-  else { x = -34; y = rand(46, H - 46); }
+  else if (edge === 'top') { x = sr(70, 760); y = -34; }
+  else if (edge === 'bottom') { x = sr(70, 760); y = H + 34; }
+  else { x = -34; y = sr(46, H - 46); }
   // recon drones survey across the AO instead of attacking
   let rtx = null, rty = null;
   if (d.recon) {
-    if (edge === 'top') { rtx = rand(560, 1020); rty = H + 60; }
-    else if (edge === 'bottom') { rtx = rand(560, 1020); rty = -60; }
-    else { rtx = W + 60; rty = rand(150, H - 150); }
+    if (edge === 'top') { rtx = sr(560, 1020); rty = H + 60; }
+    else if (edge === 'bottom') { rtx = sr(560, 1020); rty = -60; }
+    else { rtx = W + 60; rty = sr(150, H - 150); }
   }
   enemies.push({
     type, kind: d.kind, name: d.name, color: d.color,
@@ -483,9 +499,9 @@ function spawnEnemy(type, edge, px, py) {
     hp: Math.round(d.hp * hpMul), max: Math.round(d.hp * hpMul),
     hardened: !!d.hardened, stealth: !!d.stealth, boss: !!d.boss,
     spawner: d.spawner || 0, broodT: d.spawner ? d.spawner * 0.6 : 0,
-    tx: d.recon ? rtx : BASE.x + rand(-16, 16), ty: d.recon ? rty : BASE.y + rand(-46, 46),
+    tx: d.recon ? rtx : BASE.x + sr(-16, 16), ty: d.recon ? rty : BASE.y + sr(-46, 46),
     recon: !!d.recon, spawnEdge: edge || 'left',
-    weave: d.weave, wf: d.wf, ph: rand(0, TAU), t: rand(0, 10),
+    weave: d.weave, wf: d.wf, ph: sr(0, TAU), t: sr(0, 10),
     rot: 0, revealT: 0, stunT: 0, jammed: false, dead: false, arrived: false,
     alt: d.hialt ? 'hi' : 'lo', aura: d.aura || 0, sead: !!d.sead, decoy: !!d.decoy, tw: null,
   });
@@ -507,7 +523,7 @@ function onKill(e) {
   addText(e.x, e.y - 14, '+' + b, '#ffb454');
   explode(e.x, e.y, e.r);
   sfx.boom(clamp(e.r / 12, 0.4, 2));
-  if (e.type === 'hive') for (let i = 0; i < 4; i++) spawnEnemy('hornet', null, e.x + rand(-14, 14), e.y + rand(-14, 14));
+  if (e.type === 'hive') for (let i = 0; i < 4; i++) spawnEnemy('hornet', null, e.x + sr(-14, 14), e.y + sr(-14, 14));
   if (e.boss) { flash = 0.8; shake = 1.2; }
 }
 function addText(x, y, txt, color) { texts.push({ x, y, txt, color, life: 1.1 }); }
@@ -578,7 +594,7 @@ function axisWeights() {
 }
 function pickAxis(aw) {
   const tot = aw.w[0] + aw.w[1] + aw.w[2];
-  let r = Math.random() * tot;
+  let r = simRand() * tot;
   for (let i = 0; i < 3; i++) { if ((r -= aw.w[i]) <= 0) return aw.axes[i]; }
   return 'left';
 }
@@ -599,6 +615,8 @@ function startWave() {
   const rampSpd = Math.min(1.9, 1 + 0.035 * (Math.min(wave, LAST_WAVE) - 1) + (wave > LAST_WAVE ? 0.02 * (wave - LAST_WAVE) : 0));
   spdMul = rampSpd * diffSpd * (intelWave ? 1 + prof.spdBonus : 1);
   let groups = nextGroups.map(q => ({ ...q }));
+  const waveSeed = (Math.random() * 4294967296) >>> 0;
+  simRand = mulberry32(waveSeed); // adaptation rolls draw on the wave seed
   if (prof) {
     // the enemy re-routes: override probability, focus and raid compression scale with tier
     const aw = axisWeights();
@@ -606,17 +624,21 @@ function startWave() {
     const best = primaryAxis().edge;
     for (const q of groups) {
       if (q.type === 'sparrow') continue;
-      if (Math.random() < adaptP) q.edge = intelWave && Math.random() < prof.focus ? best : pickAxis(aw);
+      if (simRand() < adaptP) q.edge = intelWave && simRand() < prof.focus ? best : pickAxis(aw);
       if (intelWave) q.delay *= prof.comp; // coordinated, compressed raid
     }
     // recon flights probe ahead of the raids — tier sets cadence and start
     if (wave >= prof.reconStart && (wave - prof.reconStart) % prof.reconEvery === 0) {
       groups.unshift({ type: 'sparrow', count: wave >= (diffKey === 'ngt' ? 8 : 10) ? 2 : 1, interval: 6, delay: 1,
-        edge: ['left', 'top', 'bottom'][ri(0, 2)] });
+        edge: ['left', 'top', 'bottom'][sri(0, 2)] });
     }
     intelBoost = false;
   }
   spawnQ = groups.map(q => ({ ...q, t: q.delay, left: q.count }));
+  waveRec = { code: waveStartCode, seed: waveSeed, hpMul, spdMul,
+    groups: groups.map(q => ({ ...q })), actions: [] };
+  simRand = mulberry32(waveSeed ^ 0x9E3779B9); // combat stream — beginReplay reseeds here
+  simStep = 0; simAcc = 0;
   groups.forEach(q => seen.add(q.type));
   state = 'combat'; waveBanner = 2.2;
   el('btnWave').disabled = true;
@@ -775,7 +797,7 @@ function updEnemies(dt) {
       if (e.broodT <= 0) {
         e.broodT = e.spawner;
         const n = e.boss ? 3 : 2;
-        for (let i = 0; i < n; i++) spawnEnemy('hornet', e.spawnEdge, e.x + rand(-16, 16), e.y + rand(-16, 16));
+        for (let i = 0; i < n; i++) spawnEnemy('hornet', e.spawnEdge, e.x + sr(-16, 16), e.y + sr(-16, 16));
         addText(e.x, e.y - e.r - 10, 'SWARM RELEASE', '#ff5cd0');
       }
     }
@@ -867,7 +889,7 @@ function updTowers(dt) {
           SYS_STATS.vulcan.shots++;
           const small = t.tg.r <= 8;
           const pk = clamp(0.8 - (small ? 0.18 : 0) + (t.optic ? 0.15 : 0), 0.1, 0.95);
-          const hit = Math.random() < pk;
+          const hit = simRand() < pk;
           let ex = t.tg.x + rand(-3, 3), ey = t.tg.y + rand(-3, 3);
           if (hit) damage(t.tg, t.dmg * t.opticMul, true, 'vulcan');
           else { // round goes wide — tracer streaks past the target
@@ -951,8 +973,8 @@ function updProjs(dt) {
     if (p.tr <= 0) { smokePuff(p.x, p.y); p.tr = 0.025; }
     if (p.tg && dist(p, p.tg) < p.tg.r + 8) {
       let dm = p.dmg;
-      if (Math.random() >= 0.88) { // near miss — proximity fuse, degraded effect
-        const ma = rand(0, TAU), md = rand(14, 24);
+      if (simRand() >= 0.88) { // near miss — proximity fuse, degraded effect
+        const ma = sr(0, TAU), md = sr(14, 24);
         p.x += Math.cos(ma) * md; p.y += Math.sin(ma) * md;
         dm = p.dmg * 0.5;
         addText(p.x, p.y - 10, 'NEAR MISS', '#9fb2c4');
@@ -978,7 +1000,7 @@ function updBirds(dt) {
     b.x += Math.cos(b.a) * b.spd * dt;
     b.y += Math.sin(b.a) * b.spd * dt;
     if (b.tg && b.rearmT <= 0 && dist(b, b.tg) < b.tg.r + 7) {
-      if (Math.random() < 0.9) {
+      if (simRand() < 0.9) {
         for (const e of enemies) if (!e.dead && Math.hypot(e.x - b.x, e.y - b.y) <= 20 + e.r) damage(e, b.dmg, false, 'falcon');
         explode(b.x, b.y, 8); b.dead = true;
       } else { // overshoot — come around for another pass
@@ -1809,7 +1831,7 @@ function applySave(s) {
   cash = s.cash; wave = s.wave; endless = s.endless;
   kills = s.kills; earned = s.earned; elapsed = s.elapsed;
   spent = s.spent; destroyed = s.destroyed; repairSpent = 0; resetSys();
-  axisKills = { ...s.ak }; axisLeaks = { ...s.al }; intelBoost = s.intel; reconEscaped = false; waveStartCode = '';
+  axisKills = { ...s.ak }; axisLeaks = { ...s.al }; intelBoost = s.intel; reconEscaped = false; waveStartCode = ''; waveRec = null; simAcc = 0;
   towers = [];
   for (const st of s.towers) {
     const t = makeTower(st.k, st.x, st.y);
@@ -2289,7 +2311,7 @@ function restartGame() {
   endless = false; hpMul = 1; paused = false; speed = 1;
   spent = 0; destroyed = 0; repairSpent = 0; resetSys();
   axisKills = { left: 0, top: 0, bottom: 0 }; axisLeaks = { left: 0, top: 0, bottom: 0 };
-  intelBoost = false; reconEscaped = false; waveStartCode = '';
+  intelBoost = false; reconEscaped = false; waveStartCode = ''; waveRec = null; simAcc = 0;
   placing = null; sel = null; shake = 0; flash = 0; waveBanner = 0;
   applyDiff();
   _cash = -1; _hp = -1; _wave = ''; _host = ''; _pwr = ''; _xr = ''; saveCode = ''; saveTick = 0;
@@ -2302,6 +2324,19 @@ function restartGame() {
 }
 
 /* ================= main loop ================= */
+/* Fixed timestep: the sim only ever advances in SIM_DT quanta, so a given
+   (state, seed, inputs) triple always produces the same run — the basis for
+   wave replay and, later, verifiable PvP raids. Cosmetics use real dt. */
+const SIM_DT = 1 / 60;
+let simAcc = 0, simStep = 0;
+function stepSim() {
+  updTowers(SIM_DT);
+  updProjs(SIM_DT);
+  updBirds(SIM_DT);
+  updFx(SIM_DT);
+  if (state === 'combat') { updWaves(SIM_DT); updEnemies(SIM_DT); }
+  simStep++;
+}
 let last = performance.now();
 function frame(now) {
   let dt = Math.min(0.05, (now - last) / 1000);
@@ -2309,16 +2344,11 @@ function frame(now) {
   time += dt;
   if (!paused && (state === 'combat' || state === 'build')) {
     elapsed += dt;
-    let sim = dt * speed;
-    while (sim > 0) {
-      const step = Math.min(sim, 1 / 45);
-      updTowers(step);
-      updProjs(step);
-      updBirds(step);
-      updFx(step);
-      if (state === 'combat') { updWaves(step); updEnemies(step); }
-      sim -= step;
-      if (state === 'over' || state === 'won') break;
+    simAcc = Math.min(simAcc + dt * speed, 0.25);
+    while (simAcc >= SIM_DT) {
+      simAcc -= SIM_DT;
+      stepSim();
+      if (state === 'over' || state === 'won') { simAcc = 0; break; }
     }
   }
   refreshTop();

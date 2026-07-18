@@ -70,6 +70,11 @@
   #loadCode::placeholder,#raidCode::placeholder{color:var(--dim)}
   #loadCode:focus,#raidCode:focus{outline:none; border-color:var(--phos-dim)}
   .rbtn{padding:2px 7px !important; font-size:10px !important; letter-spacing:0 !important}
+  .btn.mini{font-size:11px; padding:5px 10px; letter-spacing:.08em; color:var(--dim)}
+  .btn.mini:hover{color:var(--phos)}
+  .hlp{font-size:12px; line-height:1.55; color:var(--ink); margin-bottom:12px}
+  .hlp b{display:block; font-family:var(--font-d); font-weight:700; letter-spacing:.14em; color:var(--phos); font-size:12px; margin-bottom:2px}
+  .hlp .k{color:var(--phos); font-weight:600}
   #fbText{width:100%; background:#08100b; border:1px solid var(--line2); color:var(--ink);
     font-family:var(--font-m); font-size:12px; padding:8px; resize:vertical; min-height:90px}
   #fbText:focus{outline:none; border-color:var(--phos-dim)}
@@ -208,21 +213,18 @@
       <h1>SIGNAL DECAY</h1>
       <div class="sub">COUNTER-UAS COMMAND · FOB "AEGIS" · D+3 04:20 LOCAL</div>
       <div class="sub" id="opsNet" style="margin:-12px 0 14px;color:var(--phos-dim)"></div>
-      <p>Hostile drone activity inbound on the western threat axis. You command the base
-      air-defense grid: guns, missiles, jammers, lasers, microwave emitters, interceptor
-      drones and the radar net that ties them together. Every system draws from a limited
-      power grid — the FOB supplies 8, generators add more. Nothing shoots what nothing sees:
-      weapons engage only confirmed tracks from the FOB's organic sensors, your radars, or
-      EO/IR optics. Ammunition costs money. Rounds miss. Drones are cheap. Win the exchange.</p>
-      <div class="keys">
-        <b>LMB</b> place / select &nbsp;·&nbsp; <b>SHIFT+LMB</b> place multiple &nbsp;·&nbsp; <b>1–9</b> select system &nbsp;·&nbsp; <b>ESC</b> cancel<br>
-        <b>SPACE</b> launch wave / pause &nbsp;·&nbsp; <b>U</b> upgrade &nbsp;·&nbsp; <b>T</b> targeting mode &nbsp;·&nbsp; <b>M</b> move &nbsp;·&nbsp; <b>X</b> sell &nbsp;·&nbsp; <b>E</b> EMCON &nbsp;·&nbsp; <b>R</b> repair FOB &nbsp;·&nbsp; <b>F</b> fast-forward
-      </div>
-      <div class="ovrow" id="modeRow" style="margin-bottom:10px">
+      <p style="margin-bottom:16px">Hostile drones inbound on the western axis. Build the air-defense grid
+      that stops them: sensors confirm the tracks, weapons take the shots, and every
+      round costs money the enemy wants you to waste. Hold FOB AEGIS for 15 waves —
+      and win the exchange.</p>
+      <div class="ovrow" id="modeRow" style="margin-bottom:8px">
         <button class="btn on" data-m="skirmish">DEFEND — SKIRMISH</button>
         <button class="btn" data-m="raid">ATTACK — RAID DESIGNER</button>
-        <button class="btn" id="btnMenuFeedback" style="margin-left:auto">FEEDBACK</button>
-        <button class="btn" id="btnMenuSettings">SETTINGS</button>
+      </div>
+      <div class="ovrow" style="margin-bottom:18px">
+        <button class="btn mini" id="btnHelp">HOW TO PLAY</button>
+        <button class="btn mini" id="btnMenuFeedback">FEEDBACK</button>
+        <button class="btn mini" id="btnMenuSettings">SETTINGS</button>
       </div>
       <div id="tabSkirmish">
       <div class="sub" style="margin-bottom:6px">THREAT LEVEL</div>
@@ -232,14 +234,16 @@
         <button class="btn" data-d="vet">VETERAN</button>
         <button class="btn" data-d="ngt">NIGHTMARE</button>
       </div>
-      <div id="diffDesc" style="font-size:10.5px;color:var(--dim);line-height:1.5;min-height:44px;margin-bottom:12px"></div>
-      <div class="sub" style="margin-bottom:6px">RESUME FROM CHECKPOINT</div>
-      <div class="ovrow" style="margin-bottom:16px">
-        <input id="loadCode" placeholder="paste checkpoint code (SD1…) — difficulty comes with it" spellcheck="false" autocomplete="off">
-        <button class="btn" id="btnLoad">⎗ LOAD</button>
+      <div id="diffDesc" style="font-size:10.5px;color:var(--dim);line-height:1.5;min-height:44px;margin-bottom:14px"></div>
+      <div class="ovrow" style="margin-bottom:18px"><button class="btn primary" id="btnStart" style="font-size:17px;padding:12px 26px;flex:1">▶ ASSUME COMMAND</button></div>
+      <div style="border-top:1px dashed var(--line2);padding-top:12px">
+        <div class="sub" style="margin-bottom:6px">RESUME FROM CHECKPOINT</div>
+        <div class="ovrow" style="margin-bottom:6px">
+          <input id="loadCode" placeholder="paste checkpoint code (SD1…) — difficulty comes with it" spellcheck="false" autocomplete="off">
+          <button class="btn" id="btnLoad">⎗ LOAD</button>
+        </div>
+        <div id="loadErr">CODE REJECTED</div>
       </div>
-      <div id="loadErr">CODE REJECTED</div>
-      <div class="ovrow"><button class="btn primary" id="btnStart" style="font-size:16px;padding:10px 26px">▶ ASSUME COMMAND</button></div>
       </div>
       <div id="tabRaid" style="display:none">
       <div class="sub" style="margin-bottom:6px">TARGET GRID</div>
@@ -325,6 +329,11 @@
         <button class="btn" data-v="sparse">SPARSE</button>
         <button class="btn" data-v="full">FULL</button>
       </div>
+      <div class="sub" style="margin-bottom:4px">GRID LOCK — SNAP PLACEMENT TO MAP GRID [G]</div>
+      <div class="ovrow" data-set="snap" style="margin-bottom:10px">
+        <button class="btn" data-v="off">OFF</button>
+        <button class="btn" data-v="on">ON</button>
+      </div>
       <div class="sub" style="margin-bottom:4px">SCREEN SHAKE</div>
       <div class="ovrow" data-set="shake" style="margin-bottom:10px">
         <button class="btn" data-v="off">OFF</button>
@@ -336,6 +345,41 @@
         <button class="btn" data-v="on">ON</button>
       </div>
       <div class="ovrow"><button class="btn primary" id="btnSettingsBack">BACK</button></div>
+    </div>
+  </div>
+
+  <div class="ov hide" id="ovHelp">
+    <div class="ovbox" style="max-width:580px">
+      <h1 style="font-size:26px">HOW TO PLAY</h1>
+      <div class="sub" style="margin-bottom:14px">FIELD MANUAL — SIXTY SECONDS</div>
+      <div class="hlp"><b>THE MISSION</b>
+        Place defense systems between waves, then launch. Drones that reach the FOB
+        cost integrity; at zero the base is overrun. Survive all 15 waves.</div>
+      <div class="hlp"><b>NOTHING SHOOTS WHAT NOTHING SEES</b>
+        Weapons only engage confirmed tracks. The FOB senses ~260m on its own;
+        SENTINEL radar and ORACLE optics extend the picture. Fuzzy diamonds are
+        unconfirmed contacts — get a sensor on them.</div>
+      <div class="hlp"><b>THE POWER GRID</b>
+        The FOB supplies 8 power and every system draws some. GENERATORS add +5.
+        Nothing runs unpowered.</div>
+      <div class="hlp"><b>WIN THE EXCHANGE</b>
+        Ammunition costs money, rounds miss, and drones are cheap. X-RATE is enemy
+        value destroyed per dollar you spend — above 1.0 you are winning the war.
+        Top 5 per difficulty post to the shared command net.</div>
+      <div class="hlp"><b>THE ENEMY LEARNS</b>
+        On STANDARD and above, raids re-route toward your leaks and away from your
+        kill zones. Down recon SPARROWS before they exfiltrate, or the next raid
+        arrives coordinated. Night and weather degrade optics and lasers — radar
+        does not care.</div>
+      <div class="hlp"><b>RAID MODE</b>
+        Flip to ATTACK on the menu: compose the drone strike package yourself and
+        fly it against a defended grid — presets, random grids, or any pasted
+        checkpoint code.</div>
+      <div class="hlp"><b>KEYS</b>
+        <span class="k">LMB</span> place / select · <span class="k">SHIFT+LMB</span> place multiple · <span class="k">1-9</span> select system · <span class="k">ESC</span> cancel<br>
+        <span class="k">SPACE</span> launch / pause · <span class="k">U</span> upgrade · <span class="k">T</span> targeting · <span class="k">M</span> move · <span class="k">X</span> sell · <span class="k">E</span> EMCON<br>
+        <span class="k">R</span> repair FOB · <span class="k">F</span> fast-forward · <span class="k">G</span> grid lock · <span class="k">P</span> pause</div>
+      <div class="ovrow"><button class="btn primary" id="btnHelpBack">BACK</button></div>
     </div>
   </div>
 
@@ -439,7 +483,7 @@ const sri = (a, b) => Math.floor(sr(a, b + 1));
 
 /* ---------- settings (device-local, cosmetic/audio only — never sim) ---------- */
 const SETTINGS_KEY = 'ip_settings';
-const settings = { text: 100, cardw: 100, hud: 100, vol: 50, radio: 'full', shake: true, scan: true };
+const settings = { text: 100, cardw: 100, hud: 100, vol: 50, radio: 'full', shake: true, scan: true, snap: false };
 let settingsOpen = false;
 function saveSettings() {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { }
@@ -463,7 +507,7 @@ function loadSettings() {
 function syncSettingsUI() {
   document.querySelectorAll('#ovSettings .ovrow[data-set]').forEach(row => {
     const key = row.dataset.set;
-    const cur = (key === 'shake' || key === 'scan') ? (settings[key] ? 'on' : 'off') : String(settings[key]);
+    const cur = (key === 'shake' || key === 'scan' || key === 'snap') ? (settings[key] ? 'on' : 'off') : String(settings[key]);
     row.querySelectorAll('.btn').forEach(b => b.classList.toggle('on', b.dataset.v === cur));
   });
 }
@@ -479,6 +523,19 @@ function closeSettings() {
   el('ovSettings').classList.add('hide');
   if (paused) el('ovPause').classList.remove('hide');
   else if (state === 'menu') el('ovMenu').classList.remove('hide');
+}
+
+/* ---------- how-to-play overlay ---------- */
+let helpOpen = false;
+function openHelp() {
+  helpOpen = true;
+  el('ovMenu').classList.add('hide');
+  el('ovHelp').classList.remove('hide');
+}
+function closeHelp() {
+  helpOpen = false;
+  el('ovHelp').classList.add('hide');
+  if (state === 'menu') el('ovMenu').classList.remove('hide');
 }
 
 /* ---------- feedback (write-only channel to the developer) ----------
@@ -2017,6 +2074,10 @@ function drawAuras() {
   }
 }
 
+function snapXY(x, y) { // grid lock: placement snaps to the 40px map grid
+  if (!settings.snap) return { x, y };
+  return { x: clamp(Math.round(x / 40) * 40, 40, W - 40), y: clamp(Math.round(y / 40) * 40, 40, H - 40) };
+}
 function validPlace(x, y, ignore) { // ignore: the tower being moved vacates its own spot
   if (x < 24 || x > W - 24 || y < 24 || y > H - 24) return false;
   if (Math.hypot(x - BASE.x, y - BASE.y) < BASE.r + 38) return false;
@@ -2101,42 +2162,52 @@ function render() {
   }
   // placement ghost
   if (placing && mouse.in) {
+    const g = snapXY(mouse.x, mouse.y);
     const d = TT[placing];
     const noPwr = d.draw > 0 && powerUsed() + d.draw > powerCap();
-    const noCov = DIFFS[diffKey].fieldPwr && d.draw > 0 && !genCovered(mouse.x, mouse.y);
-    const ok = validPlace(mouse.x, mouse.y) && cash >= d.cost && !noPwr && !noCov;
+    const noCov = DIFFS[diffKey].fieldPwr && d.draw > 0 && !genCovered(g.x, g.y);
+    const ok = validPlace(g.x, g.y) && cash >= d.cost && !noPwr && !noCov;
     const col = ok ? 'rgba(125,255,171,' : 'rgba(255,79,79,';
     ctx.fillStyle = col + '0.06)'; ctx.strokeStyle = col + '0.6)'; ctx.lineWidth = 1;
-    if (d.range > 0) { ctx.beginPath(); ctx.arc(mouse.x, mouse.y, d.range, 0, TAU); ctx.fill(); ctx.stroke(); }
-    ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 15, 0, TAU); ctx.stroke();
+    if (d.range > 0) { ctx.beginPath(); ctx.arc(g.x, g.y, d.range, 0, TAU); ctx.fill(); ctx.stroke(); }
+    ctx.beginPath(); ctx.arc(g.x, g.y, 15, 0, TAU); ctx.stroke();
     ctx.fillStyle = col + '0.9)'; ctx.font = 'bold 11px IBM Plex Mono'; ctx.textAlign = 'center';
     let label = d.name + ' ' + fmt$(d.cost) + (d.draw ? ' ⚡' + d.draw : ' +' + d.pwr + '⚡');
     if (noPwr) label = 'INSUFFICIENT POWER — BUILD GENERATOR';
     if (noCov) label = 'OUTSIDE GRID COVERAGE — EXTEND WITH A GENERATOR';
     if (placing === 'gen' && DIFFS[diffKey].fieldPwr) {
       ctx.setLineDash([4, 6]); ctx.strokeStyle = col + '0.4)';
-      ctx.beginPath(); ctx.arc(mouse.x, mouse.y, TT.gen.covR, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(g.x, g.y, TT.gen.covR, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
     }
-    ctx.fillText(label, mouse.x, mouse.y - 24);
+    ctx.fillText(label, g.x, g.y - 24);
+    if (settings.snap) {
+      ctx.fillStyle = 'rgba(95,216,255,0.6)'; ctx.font = '9px IBM Plex Mono';
+      ctx.fillText('GRID LOCK [G]', g.x, g.y + 32);
+    }
   }
   // redeploy ghost
   if (movingT && mouse.in && state === 'build') {
     if (!towers.includes(movingT)) movingT = null;
     else {
-      const noCov = DIFFS[diffKey].fieldPwr && TT[movingT.k].draw > 0 && !genCovered(mouse.x, mouse.y);
-      const ok = validPlace(mouse.x, mouse.y, movingT) && cash >= moveCost(movingT) && !noCov;
+      const g = snapXY(mouse.x, mouse.y);
+      const noCov = DIFFS[diffKey].fieldPwr && TT[movingT.k].draw > 0 && !genCovered(g.x, g.y);
+      const ok = validPlace(g.x, g.y, movingT) && cash >= moveCost(movingT) && !noCov;
       const col = ok ? 'rgba(95,216,255,' : 'rgba(255,79,79,';
       ctx.setLineDash([6, 6]); ctx.strokeStyle = col + '0.5)'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(movingT.x, movingT.y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(movingT.x, movingT.y); ctx.lineTo(g.x, g.y); ctx.stroke(); ctx.setLineDash([]);
       if (movingT.range > 0) {
         ctx.fillStyle = col + '0.06)';
-        ctx.beginPath(); ctx.arc(mouse.x, mouse.y, movingT.range, 0, TAU); ctx.fill();
+        ctx.beginPath(); ctx.arc(g.x, g.y, movingT.range, 0, TAU); ctx.fill();
         ctx.strokeStyle = col + '0.6)'; ctx.stroke();
       }
-      ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 15, 0, TAU); ctx.strokeStyle = col + '0.6)'; ctx.stroke();
+      ctx.beginPath(); ctx.arc(g.x, g.y, 15, 0, TAU); ctx.strokeStyle = col + '0.6)'; ctx.stroke();
       ctx.fillStyle = col + '0.9)'; ctx.font = 'bold 11px IBM Plex Mono'; ctx.textAlign = 'center';
       ctx.fillText(noCov ? 'OUTSIDE GRID COVERAGE — EXTEND WITH A GENERATOR'
-        : 'MOVE ' + movingT.cs + ' — ' + fmt$(moveCost(movingT)), mouse.x, mouse.y - 24);
+        : 'MOVE ' + movingT.cs + ' — ' + fmt$(moveCost(movingT)), g.x, g.y - 24);
+      if (settings.snap) {
+        ctx.fillStyle = 'rgba(95,216,255,0.6)'; ctx.font = '9px IBM Plex Mono';
+        ctx.fillText('GRID LOCK [G]', g.x, g.y + 32);
+      }
     }
   }
   ctx.restore();
@@ -2928,7 +2999,8 @@ cv.addEventListener('pointerdown', ev => {
   initAudio(); if (AC && AC.state === 'suspended') AC.resume();
   if (replaying || state === 'menu' || state === 'over' || state === 'won' || state === 'rover') return;
   if (state === 'rdesign') return; // target grid is view-only; hover shows ranges
-  const p = canvasXY(ev);
+  const p0 = canvasXY(ev);
+  const p = (placing || movingT) ? snapXY(p0.x, p0.y) : p0; // grid lock affects placement only
   if (movingT) {
     if (state !== 'build' || !towers.includes(movingT)) { movingT = null; return; }
     const hasCov = !DIFFS[diffKey].fieldPwr || TT[movingT.k].draw === 0 || genCovered(p.x, p.y);
@@ -2978,6 +3050,7 @@ document.addEventListener('keydown', ev => {
   }
   if (settingsOpen) { if (ev.key === 'Escape') closeSettings(); return; } // before menu: Enter must not start a run under the overlay
   if (feedbackOpen) { if (ev.key === 'Escape') closeFeedback(); return; }
+  if (helpOpen) { if (ev.key === 'Escape') closeHelp(); return; }
   if (state === 'menu') { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); el('btnStart').click(); } return; }
   if (state === 'over' || state === 'won' || state === 'rover') return;
   const k = ev.key.toLowerCase();
@@ -2994,6 +3067,7 @@ document.addEventListener('keydown', ev => {
   else if (k === 'escape') { placing = null; sel = null; movingT = null; refreshDetail();
     document.querySelectorAll('.card').forEach(c => c.classList.remove('sel')); }
   else if (k === 'm') startMove();
+  else if (k === 'g') { settings.snap = !settings.snap; saveSettings(); sfx.click(); }
   else if (k === ' ') { ev.preventDefault(); if (state === 'build') startWave(); else if (state === 'rdesign') launchRaid(); else togglePause(); }
   else if (k === 'u') doUpgrade();
   else if (k === 'e') toggleEmcon();
@@ -3028,6 +3102,8 @@ el('btnPause').addEventListener('click', togglePause);
 el('btnResume').addEventListener('click', togglePause);
 el('btnPauseSettings').addEventListener('click', () => { openSettings(); sfx.click(); });
 el('btnMenuSettings').addEventListener('click', () => { openSettings(); sfx.click(); });
+el('btnHelp').addEventListener('click', () => { openHelp(); sfx.click(); });
+el('btnHelpBack').addEventListener('click', () => { closeHelp(); sfx.click(); });
 el('btnMenuFeedback').addEventListener('click', () => { openFeedback('ovMenu'); sfx.click(); });
 el('btnPauseFeedback').addEventListener('click', () => { openFeedback('ovPause'); sfx.click(); });
 el('btnDoneFeedback').addEventListener('click', () => { openFeedback('ovDone'); sfx.click(); });
@@ -3053,7 +3129,7 @@ document.querySelectorAll('#ovSettings .ovrow[data-set]').forEach(row => {
   row.querySelectorAll('.btn').forEach(b => {
     b.addEventListener('click', () => {
       const key = row.dataset.set, v = b.dataset.v;
-      if (key === 'shake' || key === 'scan') settings[key] = v === 'on';
+      if (key === 'shake' || key === 'scan' || key === 'snap') settings[key] = v === 'on';
       else if (key === 'radio') settings[key] = v;
       else settings[key] = +v;
       applySettings(); saveSettings(); syncSettingsUI(); sfx.click();

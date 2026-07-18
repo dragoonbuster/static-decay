@@ -74,12 +74,18 @@ on (code, comments, commits, docs, chat).
   to `/feedback`, write-only. All wire data is sanitized before rendering
   (`sanitizeEntry`) — keep it that way.
 
-## Testing
+## Testing and dev workflow
 
 - `node test/run.js` — headless suite (DOM stubs + the real game script):
   codec round-trips, grid validity, live waves, replay restoration, raid
   determinism. Run it after every change to the sim; extend it with the
   feature you add.
+- `node test/serve.js` — local dev server at http://localhost:8080 for
+  playtesting in a real browser.
+- Branches: work lands on `dev` (pushed to GitHub for sync, never
+  deployed); merging to `main` IS the release — GitHub Pages serves main
+  at signaldecay.xyz on every push. Do not push to main until the change
+  has been approved from a local playtest.
 
 ## Constraints
 

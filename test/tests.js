@@ -165,6 +165,19 @@ placeTower('vulcan', 900, 300);
 }
 restartGame();
 
+/* grid lock */
+{
+  settings.snap = false;
+  const a = snapXY(413, 287);
+  T(a.x === 413 && a.y === 287, 'snap off: coordinates pass through');
+  settings.snap = true;
+  const b = snapXY(413, 287);
+  T(b.x === 400 && b.y === 280, 'snap on: rounds to the 40px map grid');
+  const c = snapXY(5, 715);
+  T(c.x === 40 && c.y === 680, 'snap clamps to buildable grid intersections');
+  settings.snap = false;
+}
+
 /* presence net */
 {
   const cid = clientId();

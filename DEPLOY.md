@@ -24,9 +24,10 @@ After DNS propagates (minutes to an hour), GitHub auto-issues the TLS
 certificate; then tick **Enforce HTTPS** in repo Settings -> Pages
 (or ask Claude to flip it via the API).
 
-REMINDER: the site-wide leaderboard is NOT live until a Firebase URL is
-pasted into `NET` (section 2, Mode B). Until then every visitor gets a
-this-device-only board.
+The site-wide leaderboard and feedback mailbox are LIVE: `NET` points at
+`https://signal-decay-8ea6a-default-rtdb.firebaseio.com` with the rules
+from section 2 published (verified 2026-07-18: public board read,
+feedback unreadable, malformed writes rejected).
 
 ## 1. Hosting (pick one, all free-tier friendly)
 

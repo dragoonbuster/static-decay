@@ -149,7 +149,7 @@ restartGame();
   T(threw, 'decodeSave rejects off-map towers from crafted codes');
   restartGame();
 }
-T(feedbackAvailable() === false, 'feedback entry points hidden without a shared backend');
+T(feedbackAvailable() === true, 'feedback available with the firebase backend configured');
 
 console.log('');
 console.log(__passes + ' passed, ' + __fails + ' failed');

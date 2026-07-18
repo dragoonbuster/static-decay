@@ -93,6 +93,7 @@ server code.**
            "wave": { ".validate": "newData.isNumber()" },
            "out": { ".validate": "newData.isString() && newData.val().length <= 12" },
            "xr": { ".validate": "newData.isNumber()" },
+           "ts": { ".validate": "newData.isNumber()" },
            "$other": { ".validate": false }
          }
        }

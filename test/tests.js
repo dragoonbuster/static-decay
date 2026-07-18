@@ -134,6 +134,23 @@ console.log('   heavy raid vs GUN LINE: hp ' + Math.round(baseHP) + '/' + baseMa
 T(baseHP < baseMax, 'heavy raid inflicts damage');
 restartGame();
 
+/* security hardening */
+{
+  const s = sanitizeEntry({ n: '<img src=x onerror=alert(1)>', x: '2.5', w: '7.9', k: 1e9, t: 'x' });
+  T(s.n === 'IMGS' && !/[<>&"'\/]/.test(s.n), 'leaderboard callsign sanitized (' + s.n + ')');
+  T(s.x === 2.5 && s.w === 8 && s.k === 99999 && s.t === 0, 'leaderboard fields coerced and clamped');
+}
+{
+  diffKey = 'std'; restartGame();
+  towers.push(makeTower('vulcan', 2000, 300)); // bypasses placement validation on purpose
+  const bad = encodeSave();
+  let threw = false;
+  try { decodeSave(bad); } catch (e) { threw = true; }
+  T(threw, 'decodeSave rejects off-map towers from crafted codes');
+  restartGame();
+}
+T(feedbackAvailable() === false, 'feedback entry points hidden without a shared backend');
+
 console.log('');
 console.log(__passes + ' passed, ' + __fails + ' failed');
 process.exit(__fails ? 1 : 0);

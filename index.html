@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Defense-in-depth: no external scripts/frames, network egress limited to
+     Google Fonts + Firebase RTDB. Primary XSS defense is sanitizing all
+     wire data before it reaches innerHTML (see sanitizeEntry). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.firebaseio.com https://*.firebasedatabase.app; base-uri 'none'; form-action 'none'">
 <title>STATIC DECAY — Counter-UAS Command</title>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -66,6 +70,10 @@
   #loadCode::placeholder,#raidCode::placeholder{color:var(--dim)}
   #loadCode:focus,#raidCode:focus{outline:none; border-color:var(--phos-dim)}
   .rbtn{padding:2px 7px !important; font-size:10px !important; letter-spacing:0 !important}
+  #fbText{width:100%; background:#08100b; border:1px solid var(--line2); color:var(--ink);
+    font-family:var(--font-m); font-size:12px; padding:8px; resize:vertical; min-height:90px}
+  #fbText:focus{outline:none; border-color:var(--phos-dim)}
+  #fbText::placeholder{color:var(--dim)}
   #loadErr{color:var(--red); font-size:10px; letter-spacing:.08em; margin:-10px 0 12px; display:none}
   #lbWrap{border:1px dashed var(--line2); padding:10px 14px; margin-bottom:16px}
   #lbTitle{font-size:10px; letter-spacing:.24em; color:var(--dim); margin-bottom:7px}
@@ -212,7 +220,8 @@
       <div class="ovrow" id="modeRow" style="margin-bottom:10px">
         <button class="btn on" data-m="skirmish">DEFEND — SKIRMISH</button>
         <button class="btn" data-m="raid">ATTACK — RAID DESIGNER</button>
-        <button class="btn" id="btnMenuSettings" style="margin-left:auto">SETTINGS</button>
+        <button class="btn" id="btnMenuFeedback" style="margin-left:auto">FEEDBACK</button>
+        <button class="btn" id="btnMenuSettings">SETTINGS</button>
       </div>
       <div id="tabSkirmish">
       <div class="sub" style="margin-bottom:6px">THREAT LEVEL</div>
@@ -270,6 +279,7 @@
         <button class="btn primary" id="btnResume">▶ RESUME</button>
         <button class="btn" id="btnPauseSave" style="font-family:var(--font-m);text-transform:none;letter-spacing:0">⎘ COPY CHECKPOINT</button>
         <button class="btn" id="btnPauseSettings">SETTINGS</button>
+        <button class="btn" id="btnPauseFeedback">FEEDBACK</button>
         <button class="btn" id="btnPauseRestart">↺ RESTART RUN</button>
         <button class="btn" id="btnPauseMenu">⌂ MAIN MENU</button>
       </div>
@@ -328,6 +338,20 @@
     </div>
   </div>
 
+  <div class="ov hide" id="ovFeedback">
+    <div class="ovbox" style="max-width:480px">
+      <h1 style="font-size:26px">FEEDBACK</h1>
+      <div class="sub" style="margin-bottom:10px">GOES STRAIGHT TO THE DEVELOPER — RUN CONTEXT ATTACHED AUTOMATICALLY</div>
+      <textarea id="fbText" maxlength="500" rows="5" spellcheck="false"
+        placeholder="bugs, balance gripes, ideas — what should change?"></textarea>
+      <div id="fbCount" style="font-size:10px;color:var(--dim);margin:4px 0 12px">0 / 500</div>
+      <div class="ovrow">
+        <button class="btn primary" id="btnFbSend">TRANSMIT</button>
+        <button class="btn" id="btnFbCancel">CANCEL</button>
+      </div>
+    </div>
+  </div>
+
   <div class="ov hide" id="ovDone">
     <div class="ovbox">
       <h1 id="doneTitle">PERIMETER HELD</h1>
@@ -351,6 +375,7 @@
         <button class="btn" id="btnReplay">WATCH LAST WAVE</button>
         <button class="btn" id="btnRestart">↺ RESTART</button>
         <button class="btn" id="btnToMenu">⎗ LOAD CHECKPOINT</button>
+        <button class="btn" id="btnDoneFeedback">FEEDBACK</button>
       </div>
     </div>
   </div>
@@ -452,6 +477,52 @@ function closeSettings() {
   el('ovSettings').classList.add('hide');
   if (paused) el('ovPause').classList.remove('hide');
   else if (state === 'menu') el('ovMenu').classList.remove('hide');
+}
+
+/* ---------- feedback (write-only channel to the developer) ----------
+   Feedback text is NEVER rendered back into the game DOM — it goes out on
+   the wire and is read in the Firebase console. Available only when a
+   shared backend exists (firebase/artifact); hidden on device-only boards. */
+let feedbackOpen = false, fbReturn = null;
+function feedbackAvailable() { const m = LB.detect(); return m === 'firebase' || m === 'artifact'; }
+async function sendFeedback(text) {
+  const entry = {
+    t: String(text).slice(0, 500),
+    v: 'v0.9', mode: gameMode, diff: diffKey, wave,
+    out: state === 'won' ? 'won' : state === 'over' ? 'lost' : state === 'rover' ? 'raid' : state,
+    xr: spent > 0 ? Math.round(destroyed / spent * 100) / 100 : 0,
+    ts: Date.now(),
+  };
+  const m = LB.detect();
+  if (m === 'firebase') {
+    const r = await fetch(NET.firebaseUrl.replace(/\/$/, '') + '/feedback.json',
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry) });
+    if (!r.ok) throw new Error('net');
+  } else if (m === 'artifact') {
+    let list = [];
+    try {
+      const r = await window.storage.get('feedback', true);
+      list = r && r.value ? JSON.parse(r.value) : [];
+    } catch (e) { }
+    list.push(entry);
+    if (list.length > 200) list = list.slice(-200);
+    await window.storage.set('feedback', JSON.stringify(list), true);
+  } else throw new Error('offline');
+}
+function openFeedback(from) {
+  feedbackOpen = true; fbReturn = from;
+  el('ovPause').classList.add('hide'); el('ovMenu').classList.add('hide'); el('ovDone').classList.add('hide');
+  el('fbText').value = '';
+  el('fbCount').textContent = '0 / 500';
+  el('btnFbSend').disabled = false; el('btnFbSend').textContent = 'TRANSMIT';
+  el('ovFeedback').classList.remove('hide');
+  setTimeout(() => el('fbText').focus(), 50);
+}
+function closeFeedback() {
+  feedbackOpen = false;
+  el('ovFeedback').classList.add('hide');
+  if (fbReturn) el(fbReturn).classList.remove('hide');
+  fbReturn = null;
 }
 
 /* ---------- radio log + mission clock ---------- */
@@ -2075,24 +2146,25 @@ const LB = (() => {
   const key = d => 'lb_' + d;
   async function load(diff) {
     const m = detect();
+    let raw;
     try {
       if (m === 'firebase') {
         const r = await fetch(NET.firebaseUrl.replace(/\/$/, '') + '/lb/' + diff + '.json');
         const j = await r.json();
-        return Array.isArray(j) ? j : [];
-      }
-      if (m === 'artifact') {
+        raw = Array.isArray(j) ? j : [];
+      } else if (m === 'artifact') {
         try {
           const r = await window.storage.get(key(diff), true);
-          return r && r.value ? JSON.parse(r.value) : [];
-        } catch (e) { return []; } // missing key throws
-      }
-      if (m === 'local') {
+          raw = r && r.value ? JSON.parse(r.value) : [];
+        } catch (e) { raw = []; } // missing key throws
+      } else if (m === 'local') {
         const s = localStorage.getItem(key(diff));
-        return s ? JSON.parse(s) : [];
-      }
-      return mem[diff] || [];
+        raw = s ? JSON.parse(s) : [];
+      } else raw = mem[diff] || [];
     } catch (e) { throw new Error('net'); }
+    // NEVER trust the wire: these fields reach innerHTML, and the shared
+    // board is world-writable. Sanitizing here neutralizes stored XSS.
+    return (Array.isArray(raw) ? raw : []).slice(0, 5).map(sanitizeEntry);
   }
   async function save(diff, arr) {
     const m = detect();
@@ -2111,6 +2183,16 @@ const LB = (() => {
 function sanitizeCallsign(s) {
   s = (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
   return s.length ? s.padEnd(4, '·') : 'ANON';
+}
+function sanitizeEntry(e) { // clamp every wire field to its expected shape
+  e = e && typeof e === 'object' ? e : {};
+  return {
+    n: sanitizeCallsign(typeof e.n === 'string' ? e.n : ''),
+    x: Math.max(0, Math.min(999, Number(e.x) || 0)),
+    w: Math.max(0, Math.min(999, Math.round(Number(e.w) || 0))),
+    k: Math.max(0, Math.min(99999, Math.round(Number(e.k) || 0))),
+    t: Number(e.t) || 0,
+  };
 }
 function insertScore(board, e) {
   return [...board, e]
@@ -2250,6 +2332,7 @@ function decodeSave(code) {
   for (let i = 0; i < n; i++) {
     const ti = get(4), lv = get(2) + 1, mo = get(2), pr = get(4), em = get(1), st = get(2) + 1, x = get(9) * 4, y = get(8) * 4;
     if (ti >= TKEYS.length || pr > EKEYS.length || lv > 3) throw new Error('data');
+    if (x < 24 || x > W - 24 || y < 24 || y > H - 24) throw new Error('data'); // crafted codes can't place off-map towers
     s.towers.push({ k: TKEYS[ti], level: lv, mode: MODE_ORDER[mo], prio: pr ? EKEYS[pr - 1] : null, emcon: !!em, struct: st, x, y });
   }
   if (s.diffIdx >= DKEYS.length || s.wave > 200 || (!s.endless && s.wave >= LAST_WAVE)) throw new Error('data');
@@ -2767,16 +2850,19 @@ cv.addEventListener('contextmenu', ev => {
 });
 
 document.addEventListener('keydown', ev => {
-  if (ev.target && ev.target.tagName === 'INPUT') {
-    if (ev.key === 'Enter') {
+  const tag = ev.target && ev.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') { // typing must never trigger game hotkeys
+    if (ev.key === 'Enter' && tag === 'INPUT') {
       ev.preventDefault();
       if (ev.target.id === 'loadCode') el('btnLoad').click();
       if (ev.target.id === 'raidCode') el('btnRaidStart').click();
       if (ev.target.id === 'lbName') submitScore();
     }
+    if (ev.key === 'Escape' && feedbackOpen) closeFeedback();
     return;
   }
   if (settingsOpen) { if (ev.key === 'Escape') closeSettings(); return; } // before menu: Enter must not start a run under the overlay
+  if (feedbackOpen) { if (ev.key === 'Escape') closeFeedback(); return; }
   if (state === 'menu') { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); el('btnStart').click(); } return; }
   if (state === 'over' || state === 'won' || state === 'rover') return;
   const k = ev.key.toLowerCase();
@@ -2826,6 +2912,26 @@ el('btnPause').addEventListener('click', togglePause);
 el('btnResume').addEventListener('click', togglePause);
 el('btnPauseSettings').addEventListener('click', () => { openSettings(); sfx.click(); });
 el('btnMenuSettings').addEventListener('click', () => { openSettings(); sfx.click(); });
+el('btnMenuFeedback').addEventListener('click', () => { openFeedback('ovMenu'); sfx.click(); });
+el('btnPauseFeedback').addEventListener('click', () => { openFeedback('ovPause'); sfx.click(); });
+el('btnDoneFeedback').addEventListener('click', () => { openFeedback('ovDone'); sfx.click(); });
+el('btnFbCancel').addEventListener('click', () => { closeFeedback(); sfx.click(); });
+el('fbText').addEventListener('input', () => { el('fbCount').textContent = el('fbText').value.length + ' / 500'; });
+el('btnFbSend').addEventListener('click', async () => {
+  const txt = el('fbText').value.trim();
+  if (!txt) { closeFeedback(); return; }
+  el('btnFbSend').disabled = true; el('btnFbSend').textContent = 'TRANSMITTING…';
+  try {
+    await sendFeedback(txt);
+    el('btnFbSend').textContent = 'RECEIVED — THANK YOU';
+    sfx.cash();
+    setTimeout(closeFeedback, 900);
+  } catch (e) {
+    el('btnFbSend').disabled = false;
+    el('btnFbSend').textContent = 'NET UNREACHABLE — RETRY';
+    sfx.deny();
+  }
+});
 el('btnSettingsBack').addEventListener('click', () => { closeSettings(); sfx.click(); });
 document.querySelectorAll('#ovSettings .ovrow[data-set]').forEach(row => {
   row.querySelectorAll('.btn').forEach(b => {
@@ -3265,6 +3371,8 @@ function frame(now) {
 
 /* ================= boot ================= */
 loadSettings();
+if (!feedbackAvailable()) // no shared backend — nowhere for feedback to land
+  ['btnMenuFeedback', 'btnPauseFeedback', 'btnDoneFeedback'].forEach(id => { el(id).style.display = 'none'; });
 resetSys();
 buildShop();
 buildPrioOptions();

@@ -54,15 +54,42 @@ server code.**
 1. https://console.firebase.google.com → Add project (any name; disable
    Analytics if you like).
 2. Build → **Realtime Database** → Create database → start in *locked mode*.
-3. Rules tab → paste, then Publish:
+3. Rules tab → paste, then Publish. These rules shape-validate every
+   leaderboard field (the client also sanitizes on read — defense in
+   depth) and make `/feedback` a write-only, create-only mailbox:
    ```json
    {
      "rules": {
+       ".read": false,
+       ".write": false,
        "lb": {
          "$diff": {
            ".read": true,
-           ".write": true,
-           ".validate": "newData.val().length <= 5"
+           ".write": "$diff === 'ez' || $diff === 'std' || $diff === 'vet' || $diff === 'ngt'",
+           "$i": {
+             ".validate": "($i === '0' || $i === '1' || $i === '2' || $i === '3' || $i === '4') && newData.hasChildren(['n','x','w','k','t'])",
+             "n": { ".validate": "newData.isString() && newData.val().matches(/^[A-Z0-9·]{4}$/)" },
+             "x": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 999" },
+             "w": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 999" },
+             "k": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 99999" },
+             "t": { ".validate": "newData.isNumber()" },
+             "$other": { ".validate": false }
+           }
+         }
+       },
+       "feedback": {
+         ".read": false,
+         "$id": {
+           ".write": "!data.exists() && newData.exists()",
+           ".validate": "newData.hasChildren(['t','ts'])",
+           "t": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 500" },
+           "v": { ".validate": "newData.isString() && newData.val().length <= 12" },
+           "mode": { ".validate": "newData.isString() && newData.val().length <= 12" },
+           "diff": { ".validate": "newData.isString() && newData.val().length <= 4" },
+           "wave": { ".validate": "newData.isNumber()" },
+           "out": { ".validate": "newData.isString() && newData.val().length <= 12" },
+           "xr": { ".validate": "newData.isNumber()" },
+           "$other": { ".validate": false }
          }
        }
      }
@@ -82,14 +109,38 @@ server code.**
 No artifact storage, no Firebase URL → the board persists in the browser's
 localStorage (or session memory as a last resort). The game never breaks.
 
-## 3. Honest security note
+## 3. Security posture (reviewed 2026-07-18)
 
-Any leaderboard written directly by client code can be spoofed by someone
-who opens the dev console — Firebase rules validate shape, not honesty.
-For an arcade board this is the right tradeoff. If you ever need
-cheat-resistant scores, that's the moment a ~40-line Cloudflare Worker (or
-Firebase Function) validating a submitted checkpoint code becomes worth it —
-the SD1 codes already contain enough state to sanity-check a claimed X-RATE.
+Defenses in the shipped client:
+
+- **Stored XSS (the one real vuln class for a static game): closed.** The
+  leaderboard is the only remote data the game renders; every entry is
+  sanitized at the load boundary (`sanitizeEntry`: callsigns reduced to
+  `[A-Z0-9]{4}`, all numeric fields coerced and clamped) before touching
+  `innerHTML`. Feedback text is write-only — never rendered by the game.
+- **CSP meta tag**: no external scripts, no frames, network egress limited
+  to Google Fonts and Firebase RTDB domains. Inline script must stay
+  allowed (single-file game), so sanitization remains the primary defense.
+- **Checkpoint codes**: checksum + strict field validation + map-bounds
+  checks; a crafted code cannot place off-map towers or out-of-range enums.
+  Codes contain no strings, only bit-packed numbers.
+- **Firebase rules** (section 2) shape-validate all writes; `/feedback` is
+  create-only and unreadable by clients.
+
+Accepted risks (documented tradeoffs, fine for an arcade board):
+
+- Anyone can overwrite or wipe the leaderboard with *valid-shaped* entries;
+  rules validate shape, not honesty, and scores can be spoofed from the
+  dev console. Cheat resistance = a ~40-line Cloudflare Worker (or Firebase
+  Function) validating a submitted checkpoint code — the SD1 codes already
+  contain enough state to sanity-check a claimed X-RATE.
+- Feedback can be spammed (no auth); it is capped at 500 chars, create-only,
+  and invisible to other players. Delete nodes in the console if needed.
+
+Admin: the **Firebase console is the admin panel** — read `/feedback`,
+edit or clear `/lb/*` there. A custom admin page adds nothing until there
+is real moderation volume, and doing one *safely* requires Firebase Auth
+(admin UID in the rules). Revisit alongside PvP raid rooms.
 
 ## 4. Leaderboard behavior (as shipped)
 

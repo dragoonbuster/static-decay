@@ -98,8 +98,9 @@
   @keyframes tutpulse{0%,100%{box-shadow:0 0 5px rgba(255,180,84,.45)}50%{box-shadow:0 0 16px rgba(255,180,84,.9)}}
   .tuthl{outline:2px solid var(--amber) !important; animation:tutpulse 1.1s infinite; position:relative; z-index:6}
   /* codex */
-  .cdx{font-size:11.5px; line-height:1.5; color:var(--dim); margin-bottom:11px;
-    border-left:2px solid var(--line2); padding-left:10px}
+  .cdx{display:flex; gap:10px; align-items:flex-start; font-size:11.5px; line-height:1.5;
+    color:var(--dim); margin-bottom:11px; border-left:2px solid var(--line2); padding-left:10px}
+  .cdx canvas{flex:0 0 36px; width:36px; height:36px; margin-top:2px}
   .cdx b{font-family:var(--font-d); font-size:13px; letter-spacing:.08em; color:var(--phos)}
   .cdx .meta{color:var(--amber); font-size:10.5px; margin-left:8px}
   .hlp{font-size:12px; line-height:1.55; color:var(--ink); margin-bottom:12px}
@@ -187,14 +188,19 @@
   .card .cost{color:var(--amber); font-size:12px; font-weight:600}
   .card .ds{color:var(--dim); font-size:var(--fs-ds); line-height:1.35; margin-top:3px;
     min-height:2.75em} /* no clamp: full text must stay readable at every width/text-size combo */
+  .chead{display:flex; gap:8px; align-items:center}
+  .card .cico{flex:0 0 32px; width:32px; height:32px}
   .card .hk{position:absolute; top:5px; right:6px; font-size:9px; color:var(--dim);
     border:1px solid var(--line2); padding:0 4px}
-  #detail{flex:0 0 285px; border:1px solid var(--line2); background:var(--panel2);
-    padding:8px 11px; display:flex; flex-direction:column; gap:5px}
-  #detail.hide *{visibility:hidden}
+  /* floating detail panel: selection must never reflow the bottom bar */
+  #detail{position:absolute; right:14px; bottom:12px; width:300px; z-index:14;
+    border:1px solid var(--line2); background:rgba(13,20,16,.95);
+    padding:10px 12px; display:flex; flex-direction:column; gap:5px;
+    box-shadow:0 0 22px rgba(0,0,0,.55)}
+  #detail.hide{display:none}
   #dName{font-family:var(--font-d); font-weight:700; font-size:14px; letter-spacing:.06em; color:var(--phos)}
   #dName span{color:var(--dim); font-size:11px}
-  #dStats{font-size:var(--fs-detail); color:var(--ink); line-height:1.45; white-space:pre-line; flex:1; overflow-y:auto}
+  #dStats{font-size:var(--fs-detail); color:var(--ink); line-height:1.45; white-space:pre-line; flex:1; overflow-y:auto; max-height:300px}
   #dRow{display:flex; gap:6px}
   #dRow .btn{padding:5px 8px; font-size:11px; flex:1}
   #dSell{color:var(--amber)}
@@ -206,7 +212,7 @@
   #dPrio:hover{border-color:var(--phos-dim)}
 
   @media (max-width:900px){
-    #detail{flex-basis:200px}
+    #detail{width:240px}
     .stat{min-width:56px}
     #brand small{display:none}
   }
@@ -404,6 +410,19 @@
     </div>
   </div>
 
+  <div id="detail" class="hide">
+    <div id="dName">—</div>
+    <div id="dStats"></div>
+    <select id="dPrio" title="ORACLE optic link: hunt a specific drone type"></select>
+    <div id="dRow">
+      <button class="btn" id="dUp">UPGRADE</button>
+      <button class="btn" id="dMode">TGT</button>
+      <button class="btn" id="dEmcon" title="Emission control: power this emitter down. Silent systems are invisible to WASP anti-radiation drones and draw no grid power — but sense/jam/shoot nothing. [E]">EMCON</button>
+      <button class="btn" id="dMove">MOVE</button>
+      <button class="btn" id="dSell">SELL</button>
+    </div>
+  </div>
+
   <div id="tutBox" class="hide">
     <div id="tutTitle"><small id="tutStep"></small><span id="tutTitleTxt"></span></div>
     <div id="tutText"></div>
@@ -500,18 +519,6 @@
 
 <footer id="bottom">
   <div id="shop"></div>
-  <div id="detail" class="hide">
-    <div id="dName">—</div>
-    <div id="dStats"></div>
-    <select id="dPrio" title="ORACLE optic link: hunt a specific drone type"></select>
-    <div id="dRow">
-      <button class="btn" id="dUp">UPGRADE</button>
-      <button class="btn" id="dMode">TGT</button>
-      <button class="btn" id="dEmcon" title="Emission control: power this emitter down. Silent systems are invisible to WASP anti-radiation drones and draw no grid power — but sense/jam/shoot nothing. [E]">EMCON</button>
-      <button class="btn" id="dMove">MOVE</button>
-      <button class="btn" id="dSell">SELL</button>
-    </div>
-  </div>
 </footer>
 
 <script>
@@ -610,19 +617,22 @@ function buildCodex() { // generated from the live catalogs so it can never drif
   let h = '';
   for (const k of TKEYS) {
     const d = TT[k];
-    h += '<div class="cdx"><b>' + d.name + '</b><span class="meta">' + fmt$(d.cost) +
+    h += '<div class="cdx"><canvas width="40" height="40"></canvas><div><b>' + d.name + '</b><span class="meta">' + fmt$(d.cost) +
       (d.draw ? ' · draw ' + d.draw + ' pwr' : d.pwr ? ' · +' + d.pwr + ' pwr' : '') +
-      (d.ammoCost ? ' · $' + d.ammoCost + '/shot' : '') + '</span><br>' + d.ds + '</div>';
+      (d.ammoCost ? ' · $' + d.ammoCost + '/shot' : '') + '</span><br>' + d.ds + '</div></div>';
   }
   el('cdxSys').innerHTML = h;
   h = '';
   for (const k in ETYPES) {
     const d = ETYPES[k];
-    h += '<div class="cdx"><b style="color:' + d.color + '">' + d.name + '</b><span class="meta">HP ' + d.hp +
+    h += '<div class="cdx"><canvas width="40" height="40"></canvas><div><b style="color:' + d.color + '">' + d.name + '</b><span class="meta">HP ' + d.hp +
       ' · SPD ' + d.spd + ' · DMG ' + d.dmg + ' · BOUNTY $' + d.bounty +
-      (d.armor ? ' · ARMOR ' + d.armor : '') + '</span><br>' + d.brief + '</div>';
+      (d.armor ? ' · ARMOR ' + d.armor : '') + '</span><br>' + d.brief + '</div></div>';
   }
   el('cdxUas').innerHTML = h;
+  document.querySelectorAll('#cdxSys .cdx canvas').forEach((cv2, i) => paintSysIcon(cv2, TKEYS[i]));
+  const uk = Object.keys(ETYPES);
+  document.querySelectorAll('#cdxUas .cdx canvas').forEach((cv2, i) => paintUasIcon(cv2, uk[i]));
 }
 function openCodex(from) {
   codexOpen = true; cdxReturn = from;
@@ -876,9 +886,9 @@ function initAudio() {
     master = AC.createGain(); master.gain.value = 0.5 * settings.vol / 100; master.connect(AC.destination);
   } catch (e) { AC = null; }
 }
-function tone(f0, f1, dur, type, vol) {
+function tone(f0, f1, dur, type, vol, at) {
   if (!AC || !soundOn) return;
-  const t = AC.currentTime;
+  const t = AC.currentTime + (at || 0);
   const o = AC.createOscillator(), g = AC.createGain();
   o.type = type; o.frequency.setValueAtTime(f0, t);
   o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
@@ -900,7 +910,12 @@ function noiseHit(dur, vol, cutoff) {
 const sfx = {
   shot:   () => tone(1500, 700, 0.045, 'square', 0.025),
   launch: () => { noiseHit(0.45, 0.10, 900); tone(300, 90, 0.4, 'sawtooth', 0.05); },
-  boom:   s => { noiseHit(0.25 + s * 0.12, 0.14 + s * 0.05, 500 + s * 200); tone(120, 40, 0.3, 'triangle', 0.08); },
+  boom:   s => { // stepped square-wave drop — chiptune explosion to match the rest of the kit
+    const n = Math.round(4 + s * 2);
+    for (let i = 0; i < n; i++)
+      tone(520 * Math.pow(0.74, i) * (0.9 + s * 0.15), 55, 0.055, 'square', Math.max(0.012, 0.05 - i * 0.006), i * 0.038);
+    noiseHit(0.07 + s * 0.03, 0.035, 900);
+  },
   zap:    () => { tone(2400, 200, 0.22, 'sawtooth', 0.07); noiseHit(0.15, 0.06, 3000); },
   laser:  () => tone(920, 860, 0.07, 'sine', 0.03),
   baseHit:() => { noiseHit(0.5, 0.22, 350); tone(90, 35, 0.5, 'triangle', 0.12); },
@@ -2817,6 +2832,106 @@ function copyCheckpoint() {
   copyText(saveCode, el('btnSave'), '⎘ ' + saveCode.slice(0, 9) + '…');
 }
 
+/* ---------- unit icons: same visual language as the field sprites ---------- */
+function paintSysIcon(cv2, k) {
+  if (!cv2 || !cv2.getContext) return;
+  const c = cv2.getContext('2d');
+  c.clearRect(0, 0, 40, 40);
+  c.save(); c.translate(20, 20); c.scale(1.5, 1.5);
+  c.fillStyle = '#101a15'; c.strokeStyle = '#2c4033'; c.lineWidth = 1;
+  c.beginPath(); c.arc(0, 0, 11, 0, TAU); c.fill(); c.stroke();
+  switch (TT[k].kind) {
+    case 'gun':
+      c.fillStyle = '#22352a'; c.fillRect(-5, -5, 10, 10);
+      c.strokeStyle = '#7dffab'; c.lineWidth = 1.6;
+      c.beginPath(); c.moveTo(3, -2); c.lineTo(12, -2); c.moveTo(3, 2); c.lineTo(12, 2); c.stroke();
+      break;
+    case 'sam':
+      c.fillStyle = '#22352a'; c.fillRect(-7, -6, 14, 12);
+      c.strokeStyle = '#7dffab'; c.lineWidth = 0.8; c.strokeRect(-7, -6, 14, 12);
+      c.fillStyle = '#0c1310';
+      [[-3, -3], [3, -3], [-3, 3], [3, 3]].forEach(p => { c.beginPath(); c.arc(p[0], p[1], 2, 0, TAU); c.fill(); c.stroke(); });
+      break;
+    case 'laser':
+      c.fillStyle = '#22352a'; c.beginPath(); c.arc(0, 0, 6, 0, TAU); c.fill();
+      c.strokeStyle = '#ffe9a0'; c.lineWidth = 2.4;
+      c.beginPath(); c.moveTo(1, 0); c.lineTo(11, 0); c.stroke();
+      break;
+    case 'pulse':
+      c.rotate(Math.PI / 4);
+      c.fillStyle = '#22352a'; c.fillRect(-6, -6, 12, 12);
+      c.strokeStyle = '#5fd8ff'; c.lineWidth = 0.9; c.strokeRect(-6, -6, 12, 12); c.strokeRect(-3, -3, 6, 6);
+      break;
+    case 'jam':
+      c.strokeStyle = '#7dffab'; c.lineWidth = 1.6;
+      c.beginPath(); c.moveTo(0, 7); c.lineTo(0, -6); c.stroke();
+      c.lineWidth = 0.9;
+      c.beginPath(); c.arc(0, -6, 4, -1.1, 1.1); c.stroke();
+      c.beginPath(); c.arc(0, -6, 7, -1.1, 1.1); c.stroke();
+      break;
+    case 'bay':
+      c.strokeStyle = '#5fd8ff'; c.lineWidth = 1.2;
+      c.beginPath(); c.arc(0, 0, 8, 0, TAU); c.stroke();
+      c.fillStyle = '#5fd8ff';
+      c.beginPath(); c.moveTo(0, -4.5); c.lineTo(4, 3.5); c.lineTo(-4, 3.5); c.closePath(); c.fill();
+      break;
+    case 'radar':
+      c.strokeStyle = '#5fd8ff'; c.lineWidth = 1.6;
+      c.beginPath(); c.moveTo(0, 7); c.lineTo(0, -2); c.stroke();
+      c.save(); c.translate(0, -4); c.rotate(-0.5);
+      c.beginPath(); c.moveTo(-7, 0); c.lineTo(7, 0); c.stroke();
+      c.beginPath(); c.arc(0, 0, 1.6, 0, TAU); c.stroke(); c.restore();
+      break;
+    case 'optic':
+      c.strokeStyle = '#ffd9a0'; c.lineWidth = 1.6;
+      c.beginPath(); c.moveTo(0, 8); c.lineTo(0, 0); c.stroke();
+      c.fillStyle = '#22352a'; c.beginPath(); c.arc(0, -3, 5, 0, TAU); c.fill();
+      c.lineWidth = 1; c.beginPath(); c.arc(0, -3, 5, 0, TAU); c.stroke();
+      c.fillStyle = '#ffd9a0'; c.beginPath(); c.arc(2.5, -3, 1.5, 0, TAU); c.fill();
+      break;
+    case 'gen':
+      c.fillStyle = '#22352a'; c.fillRect(-6, -6, 12, 12);
+      c.strokeStyle = '#ffb454'; c.lineWidth = 0.9; c.strokeRect(-6, -6, 12, 12);
+      c.lineWidth = 1.6;
+      c.beginPath(); c.moveTo(1.5, -4.5); c.lineTo(-2, 0.5); c.lineTo(0.8, 0.5); c.lineTo(-1.5, 5); c.stroke();
+      break;
+  }
+  c.restore();
+}
+function paintUasIcon(cv2, k) {
+  if (!cv2 || !cv2.getContext) return;
+  const d = ETYPES[k];
+  const c = cv2.getContext('2d');
+  c.clearRect(0, 0, 40, 40);
+  c.save(); c.translate(20, 20);
+  const s = clamp(13 / d.r, 0.55, 1.5);
+  c.scale(s, s);
+  c.strokeStyle = d.color; c.fillStyle = '#121a15'; c.lineWidth = 1.6 / s;
+  if (d.kind === 'quad') {
+    c.rotate(Math.PI / 4);
+    c.beginPath(); c.moveTo(-d.r, -d.r); c.lineTo(d.r, d.r); c.moveTo(-d.r, d.r); c.lineTo(d.r, -d.r); c.stroke();
+    c.lineWidth = 1 / s;
+    [[-d.r, -d.r], [d.r, -d.r], [-d.r, d.r], [d.r, d.r]].forEach(p => { c.beginPath(); c.arc(p[0], p[1], d.r * 0.55, 0, TAU); c.stroke(); });
+    c.fillStyle = d.color; c.fillRect(-2.5, -2.5, 5, 5);
+  } else if (d.kind === 'wing') {
+    if (d.decoy) c.setLineDash([3, 3]);
+    c.beginPath();
+    c.moveTo(d.r * 1.5, 0); c.lineTo(-d.r, d.r * 0.9); c.lineTo(-d.r * 0.5, 0); c.lineTo(-d.r, -d.r * 0.9);
+    c.closePath(); c.fill(); c.stroke();
+    c.setLineDash([]);
+    c.fillStyle = '#5fd8ff'; c.beginPath(); c.arc(d.r * 0.45, 0, 1.8, 0, TAU); c.fill();
+  } else {
+    hexPath(c, 0, 0, d.r); c.fill(); c.stroke();
+    c.lineWidth = 1 / s;
+    for (let i = 0; i < 6; i++) {
+      const a = TAU * i / 6 + Math.PI / 6;
+      c.beginPath(); c.arc(Math.cos(a) * d.r, Math.sin(a) * d.r, d.r * 0.38, 0, TAU); c.stroke();
+    }
+    c.fillStyle = d.color; c.beginPath(); c.arc(0, 0, d.r * 0.3, 0, TAU); c.fill();
+  }
+  c.restore();
+}
+
 function buildShop() {
   const shop = el('shop');
   shop.innerHTML = '';
@@ -2827,9 +2942,11 @@ function buildShop() {
       c.className = 'card'; c.dataset.k = k;
       c.title = d.brief;
       c.innerHTML = '<span class="hk">' + (i < 9 ? i + 1 : i === 9 ? 0 : '') + '</span>' +
+        '<div class="chead"><canvas class="cico" width="40" height="40"></canvas><div>' +
         '<div class="nm" style="color:' + d.color + '">' + d.name + '</div>' +
-        '<div class="cost">' + fmt$(PCOST[k]) + ' <span style="color:var(--dim)">each</span></div>' +
+        '<div class="cost">' + fmt$(PCOST[k]) + ' <span style="color:var(--dim)">each</span></div></div></div>' +
         '<div class="ds">' + d.brief + '</div>';
+      paintUasIcon(c.querySelector('.cico'), k);
       c.addEventListener('click', () => addRaidGroup(k));
       shop.appendChild(c);
     });
@@ -2842,9 +2959,12 @@ function buildShop() {
     c.title = d.ds;
     const pwr = d.draw > 0 ? ' <span style="color:var(--cyan)">⚡' + d.draw + '</span>'
       : d.pwr ? ' <span style="color:var(--cyan)">+' + d.pwr + '⚡</span>' : '';
-    c.innerHTML = '<span class="hk">' + (i + 1) + '</span><div class="nm">' + d.name + '</div>' +
-      '<div class="cost">' + fmt$(d.cost) + pwr + (d.ammoCost ? ' <span style="color:var(--dim)">+$' + d.ammoCost + '/shot</span>' : '') + '</div>' +
+    c.innerHTML = '<span class="hk">' + (i + 1) + '</span>' +
+      '<div class="chead"><canvas class="cico" width="40" height="40"></canvas><div>' +
+      '<div class="nm">' + d.name + '</div>' +
+      '<div class="cost">' + fmt$(d.cost) + pwr + (d.ammoCost ? ' <span style="color:var(--dim)">+$' + d.ammoCost + '/shot</span>' : '') + '</div></div></div>' +
       '<div class="ds">' + d.ds + '</div>';
+    paintSysIcon(c.querySelector('.cico'), k);
     c.addEventListener('click', () => selectShop(k));
     shop.appendChild(c);
   });

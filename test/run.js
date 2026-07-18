@@ -23,6 +23,7 @@ function mkEl(tag) {
     children: [],
     addEventListener() {}, removeEventListener() {},
     appendChild(c) { el.children.push(c); return c; }, removeChild() {}, focus() {}, select() {},
+    querySelector() { return null; }, querySelectorAll() { return []; },
     getBoundingClientRect() { return { left: 0, top: 0, width: 1280, height: 720 }; },
   };
   if (tag === 'canvas') { el.width = 300; el.height = 150; el.getContext = () => mkCtx(); }

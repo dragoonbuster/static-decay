@@ -143,7 +143,7 @@
   .card .nm{font-family:var(--font-d); font-weight:700; font-size:13px; letter-spacing:.06em}
   .card .cost{color:var(--amber); font-size:12px; font-weight:600}
   .card .ds{color:var(--dim); font-size:var(--fs-ds); line-height:1.35; margin-top:3px;
-    min-height:2.75em; max-height:5.5em; overflow:hidden}
+    min-height:2.75em} /* no clamp: full text must stay readable at every width/text-size combo */
   .card .hk{position:absolute; top:5px; right:6px; font-size:9px; color:var(--dim);
     border:1px solid var(--line2); padding:0 4px}
   #detail{flex:0 0 285px; border:1px solid var(--line2); background:var(--panel2);
@@ -212,6 +212,7 @@
       <div class="ovrow" id="modeRow" style="margin-bottom:10px">
         <button class="btn on" data-m="skirmish">DEFEND — SKIRMISH</button>
         <button class="btn" data-m="raid">ATTACK — RAID DESIGNER</button>
+        <button class="btn" id="btnMenuSettings" style="margin-left:auto">SETTINGS</button>
       </div>
       <div id="tabSkirmish">
       <div class="sub" style="margin-bottom:6px">THREAT LEVEL</div>
@@ -443,12 +444,14 @@ function openSettings() {
   settingsOpen = true;
   syncSettingsUI();
   el('ovPause').classList.add('hide');
+  el('ovMenu').classList.add('hide');
   el('ovSettings').classList.remove('hide');
 }
 function closeSettings() {
   settingsOpen = false;
   el('ovSettings').classList.add('hide');
   if (paused) el('ovPause').classList.remove('hide');
+  else if (state === 'menu') el('ovMenu').classList.remove('hide');
 }
 
 /* ---------- radio log + mission clock ---------- */
@@ -2773,10 +2776,10 @@ document.addEventListener('keydown', ev => {
     }
     return;
   }
+  if (settingsOpen) { if (ev.key === 'Escape') closeSettings(); return; } // before menu: Enter must not start a run under the overlay
   if (state === 'menu') { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); el('btnStart').click(); } return; }
   if (state === 'over' || state === 'won' || state === 'rover') return;
   const k = ev.key.toLowerCase();
-  if (settingsOpen) { if (k === 'escape') closeSettings(); return; }
   if (replaying) { // spectator controls only
     if (k === 'escape') { if (gameMode === 'raid') fastForwardRaid(); else finishReplay(); }
     else if (k === ' ') { ev.preventDefault(); togglePause(); }
@@ -2822,6 +2825,7 @@ el('btnWave').addEventListener('click', () => { initAudio(); startWave(); });
 el('btnPause').addEventListener('click', togglePause);
 el('btnResume').addEventListener('click', togglePause);
 el('btnPauseSettings').addEventListener('click', () => { openSettings(); sfx.click(); });
+el('btnMenuSettings').addEventListener('click', () => { openSettings(); sfx.click(); });
 el('btnSettingsBack').addEventListener('click', () => { closeSettings(); sfx.click(); });
 document.querySelectorAll('#ovSettings .ovrow[data-set]').forEach(row => {
   row.querySelectorAll('.btn').forEach(b => {
@@ -2911,9 +2915,9 @@ const RAID_INFO = {
   proc3: 'Randomly generated grid, ~$1800 invested. Fresh layout every time.',
   code: 'Paste any defense checkpoint (SD1 code) and raid that exact grid — your own best run or a friend\'s.',
 };
-document.querySelectorAll('#modeRow .btn').forEach(b => {
+document.querySelectorAll('#modeRow .btn[data-m]').forEach(b => {
   b.addEventListener('click', () => {
-    document.querySelectorAll('#modeRow .btn').forEach(x => x.classList.toggle('on', x === b));
+    document.querySelectorAll('#modeRow .btn[data-m]').forEach(x => x.classList.toggle('on', x === b));
     el('tabSkirmish').style.display = b.dataset.m === 'skirmish' ? '' : 'none';
     el('tabRaid').style.display = b.dataset.m === 'raid' ? '' : 'none';
     sfx.click();

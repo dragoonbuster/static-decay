@@ -4,6 +4,27 @@ The game is a single self-contained HTML file with no build step, no assets,
 and no server code. Anything that can serve a static file can serve this game
 at full speed.
 
+## 0. Production setup: staticdecay.xyz via GitHub Pages (live config)
+
+The repo is https://github.com/dragoonbuster/static-decay and GitHub Pages
+serves `main` at the root, so **every `git push` deploys automatically**.
+The `CNAME` file in the repo pins the custom domain.
+
+One-time DNS at the registrar for staticdecay.xyz:
+
+- Four `A` records on the apex (`@`), one per GitHub Pages IP:
+  `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`
+- Optional but recommended: `CNAME` record `www` -> `dragoonbuster.github.io`
+  (GitHub then redirects www to the apex).
+
+After DNS propagates (minutes to an hour), GitHub auto-issues the TLS
+certificate; then tick **Enforce HTTPS** in repo Settings -> Pages.
+Fallback URL while DNS settles: https://dragoonbuster.github.io/static-decay/
+
+REMINDER: the site-wide leaderboard is NOT live until a Firebase URL is
+pasted into `NET` (section 2, Mode B). Until then every visitor gets a
+this-device-only board.
+
 ## 1. Hosting (pick one, all free-tier friendly)
 
 - **Cloudflare Pages** — dashboard → Workers & Pages → Create → Pages →

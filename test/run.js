@@ -1,5 +1,5 @@
 'use strict';
-/* Headless test runner for Static Decay.
+/* Headless test runner for Signal Decay.
    Usage: node test/run.js
    Stubs the DOM, extracts the game script from index.html, and executes it
    together with test/tests.js in one scope so the tests can reach the

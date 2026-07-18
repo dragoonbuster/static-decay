@@ -1,4 +1,4 @@
-# STATIC DECAY — Deployment Guide (v0.9)
+# SIGNAL DECAY — Deployment Guide (v0.9)
 
 The game is a single self-contained HTML file with no build step, no assets,
 and no server code. Anything that can serve a static file can serve this game
@@ -8,8 +8,8 @@ at full speed.
 
 The repo is https://github.com/dragoonbuster/static-decay and GitHub Pages
 serves `main` at the root, so **every `git push` deploys automatically**.
-The `CNAME` file in the repo pins the custom domain (signaldecay.xyz —
-the game is titled STATIC DECAY but the deployed domain is signaldecay).
+The `CNAME` file in the repo pins the custom domain (signaldecay.xyz,
+matching the game title SIGNAL DECAY).
 
 One-time DNS at the registrar (Namecheap) for signaldecay.xyz — delete
 the default parking records first (the `URL Redirect` on `@` and the

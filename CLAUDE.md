@@ -1,8 +1,9 @@
-# STATIC DECAY (DroneDefender)
+# SIGNAL DECAY (DroneDefender)
 
-Formerly IRON PERIMETER; renamed 2026-07-18. The checkpoint-code prefix
-switched from "IP6" to "SD1" at the same time (pre-deployment, so no
-codes were in the wild). Old IP6 codes no longer load.
+Formerly IRON PERIMETER, briefly STATIC DECAY; settled on SIGNAL DECAY
+2026-07-18 to match the deployed domain (signaldecay.xyz). The
+checkpoint-code prefix "SD1" conveniently fits both names; old IP6
+codes no longer load (prefix switched pre-deployment).
 
 Counter-UAS tower-defense game. The entire game is one self-contained file,
 `index.html` (no build step, no assets, no dependencies beyond Google Fonts,

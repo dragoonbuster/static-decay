@@ -1,4 +1,4 @@
-# STATIC DECAY — Development Plans
+# SIGNAL DECAY — Development Plans
 
 Living document. Update as plans evolve (project rule: keep track of plans).
 

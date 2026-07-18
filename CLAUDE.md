@@ -45,8 +45,9 @@ on (code, comments, commits, docs, chat).
   PvP verification. `startWave` records a wave record (checkpoint code,
   seed, post-adaptation groups, env, input log) used by `beginReplay`.
 - Player actions are DOM-free cores (`placeTower`, `sellTower`,
-  `upgradeTower`, `cycleModeT`, `setPrioT`, `toggleEmconT`) shared by UI
-  handlers and the replay applier; they self-record via `recAction`.
+  `upgradeTower`, `cycleModeT`, `setPrioT`, `toggleEmconT`, `moveTower`)
+  shared by UI handlers and the replay applier; they self-record via
+  `recAction`. Tower moves cost ~10% of invested (min $5), build only.
 - Sensor fusion rule: weapons only engage enemies with `revealT > 0`
   (confirmed track from FOB sensors, radar, or optic).
 - Environment: `env` multipliers (sense/optic/laser) from day-night cycle

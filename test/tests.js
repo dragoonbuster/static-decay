@@ -151,6 +151,20 @@ restartGame();
 }
 T(feedbackAvailable() === true, 'feedback available with the firebase backend configured');
 
+/* tower move */
+diffKey = 'ez'; restartGame();
+placeTower('vulcan', 900, 300);
+{
+  const t0 = towers[0], preCash = cash, mc = moveCost(t0);
+  T(mc === 5, 'move cost ~10% of value, min $5 (got $' + mc + ')');
+  moveTower(t0, 700, 400);
+  T(t0.x === 700 && t0.y === 400 && cash === preCash - mc && towers.length === 1, 'moveTower relocates and charges $' + mc);
+  placeTower('radar', 760, 400);
+  T(validPlace(705, 400, t0) === true, 'validPlace ignores the mover itself');
+  T(validPlace(755, 400, t0) === false, 'validPlace still blocks other towers');
+}
+restartGame();
+
 /* presence net */
 {
   const cid = clientId();

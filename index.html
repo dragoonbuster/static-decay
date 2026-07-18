@@ -216,7 +216,7 @@
       EO/IR optics. Ammunition costs money. Rounds miss. Drones are cheap. Win the exchange.</p>
       <div class="keys">
         <b>LMB</b> place / select &nbsp;·&nbsp; <b>SHIFT+LMB</b> place multiple &nbsp;·&nbsp; <b>1–9</b> select system &nbsp;·&nbsp; <b>ESC</b> cancel<br>
-        <b>SPACE</b> launch wave / pause &nbsp;·&nbsp; <b>U</b> upgrade &nbsp;·&nbsp; <b>T</b> targeting mode &nbsp;·&nbsp; <b>X</b> sell &nbsp;·&nbsp; <b>E</b> EMCON &nbsp;·&nbsp; <b>R</b> repair FOB &nbsp;·&nbsp; <b>F</b> fast-forward
+        <b>SPACE</b> launch wave / pause &nbsp;·&nbsp; <b>U</b> upgrade &nbsp;·&nbsp; <b>T</b> targeting mode &nbsp;·&nbsp; <b>M</b> move &nbsp;·&nbsp; <b>X</b> sell &nbsp;·&nbsp; <b>E</b> EMCON &nbsp;·&nbsp; <b>R</b> repair FOB &nbsp;·&nbsp; <b>F</b> fast-forward
       </div>
       <div class="ovrow" id="modeRow" style="margin-bottom:10px">
         <button class="btn on" data-m="skirmish">DEFEND — SKIRMISH</button>
@@ -398,6 +398,7 @@
       <button class="btn" id="dUp">UPGRADE</button>
       <button class="btn" id="dMode">TGT</button>
       <button class="btn" id="dEmcon" title="Emission control: power this emitter down. Silent systems are invisible to WASP anti-radiation drones and draw no grid power — but sense/jam/shoot nothing. [E]">EMCON</button>
+      <button class="btn" id="dMove">MOVE</button>
       <button class="btn" id="dSell">SELL</button>
     </div>
   </div>
@@ -728,6 +729,7 @@ const TT = {
     ds: 'Field generator: +5 grid power. The FOB supplies 8 — every system draws from the grid.' },
 };
 function upCost(t) { const b = TT[t.k].cost; return Math.round(b * (t.level === 1 ? 1.0 : 1.6) / 5) * 5; }
+function moveCost(t) { return Math.max(5, Math.round(t.invested * 0.10 / 5) * 5); } // redeploy at ~10% of value vs the 30% sell haircut
 function powerCap() { let p = 8; for (const t of towers) if (t.k === 'gen') p += TT.gen.pwr; return p; }
 function powerUsed() { let p = 0; for (const t of towers) p += (t.emcon ? 0 : TT[t.k].draw); return p; }
 function applyStats(t) {
@@ -891,7 +893,7 @@ function resetAAR() { killPts = []; seadPts = []; killValAxis = { left: 0, top: 
 resetAAR();
 let enemies = [], towers = [], projs = [], birds = [], parts = [], texts = [], rings = [], tracers = [];
 let spawnQ = [], nextGroups = null;
-let placing = null, sel = null, hoverT = null;
+let placing = null, sel = null, hoverT = null, movingT = null;
 let mouse = { x: 0, y: 0, in: false, shift: false };
 let shake = 0, flash = 0, waveBanner = 0;
 const seen = new Set();
@@ -1072,6 +1074,7 @@ function startWave() {
   simRand = mulberry32(waveSeed ^ 0x9E3779B9); // combat stream — beginReplay reseeds here
   simStep = 0; simAcc = 0;
   groups.forEach(q => seen.add(q.type));
+  movingT = null; // redeploy window closes at launch
   waveTypesLogged.clear();
   radioMsg('ALL STATIONS: WAVE ' + wave + ' INBOUND — WEAPONS FREE');
   state = 'combat'; waveBanner = 2.2;
@@ -2014,10 +2017,10 @@ function drawAuras() {
   }
 }
 
-function validPlace(x, y) {
+function validPlace(x, y, ignore) { // ignore: the tower being moved vacates its own spot
   if (x < 24 || x > W - 24 || y < 24 || y > H - 24) return false;
   if (Math.hypot(x - BASE.x, y - BASE.y) < BASE.r + 38) return false;
-  for (const t of towers) if (Math.hypot(x - t.x, y - t.y) < 34) return false;
+  for (const t of towers) if (t !== ignore && Math.hypot(x - t.x, y - t.y) < 34) return false;
   return true;
 }
 
@@ -2115,6 +2118,26 @@ function render() {
       ctx.beginPath(); ctx.arc(mouse.x, mouse.y, TT.gen.covR, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
     }
     ctx.fillText(label, mouse.x, mouse.y - 24);
+  }
+  // redeploy ghost
+  if (movingT && mouse.in && state === 'build') {
+    if (!towers.includes(movingT)) movingT = null;
+    else {
+      const noCov = DIFFS[diffKey].fieldPwr && TT[movingT.k].draw > 0 && !genCovered(mouse.x, mouse.y);
+      const ok = validPlace(mouse.x, mouse.y, movingT) && cash >= moveCost(movingT) && !noCov;
+      const col = ok ? 'rgba(95,216,255,' : 'rgba(255,79,79,';
+      ctx.setLineDash([6, 6]); ctx.strokeStyle = col + '0.5)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(movingT.x, movingT.y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke(); ctx.setLineDash([]);
+      if (movingT.range > 0) {
+        ctx.fillStyle = col + '0.06)';
+        ctx.beginPath(); ctx.arc(mouse.x, mouse.y, movingT.range, 0, TAU); ctx.fill();
+        ctx.strokeStyle = col + '0.6)'; ctx.stroke();
+      }
+      ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 15, 0, TAU); ctx.strokeStyle = col + '0.6)'; ctx.stroke();
+      ctx.fillStyle = col + '0.9)'; ctx.font = 'bold 11px IBM Plex Mono'; ctx.textAlign = 'center';
+      ctx.fillText(noCov ? 'OUTSIDE GRID COVERAGE — EXTEND WITH A GENERATOR'
+        : 'MOVE ' + movingT.cs + ' — ' + fmt$(moveCost(movingT)), mouse.x, mouse.y - 24);
+    }
   }
   ctx.restore();
   // weather + night pass (over the field, under the HUD)
@@ -2399,7 +2422,7 @@ function applySave(s) {
   el('cashL').textContent = 'FUNDS';
   el('btnWave').style.display = ''; el('btnRepair').style.display = '';
   enemies = []; projs = []; birds = []; parts = []; texts = []; rings = []; tracers = []; spawnQ = [];
-  placing = null; sel = null; shake = 0; flash = 0; waveBanner = 0; paused = false; speed = 1;
+  placing = null; sel = null; movingT = null; shake = 0; flash = 0; waveBanner = 0; paused = false; speed = 1;
   diffKey = DKEYS[s.diffIdx];
   const D = DIFFS[diffKey];
   diffHp = D.hp; diffBounty = D.b; diffSpd = D.spd; baseMax = D.base;
@@ -2472,7 +2495,7 @@ function restoreRun() {
   killPts = s.killPts; seadPts = s.seadPts;
   killValAxis = s.killValAxis; leakDmgAxis = s.leakDmgAxis; reconExfilN = s.reconExfilN;
   enemies = []; projs = []; birds = []; parts = []; texts = []; rings = []; tracers = []; spawnQ = [];
-  placing = null; sel = null; hoverT = null; shake = 0; flash = 0; waveBanner = 0;
+  placing = null; sel = null; hoverT = null; movingT = null; shake = 0; flash = 0; waveBanner = 0;
   paused = false; speed = 1; simAcc = 0;
   el('btnSpeed').textContent = '1×'; el('btnPause').textContent = '❚❚';
   el('ovPause').classList.add('hide');
@@ -2638,6 +2661,11 @@ function refreshDetail() {
   em.style.display = isEmitter(t) ? '' : 'none';
   em.textContent = t.emcon ? '◌ SILENT' : 'EMCON';
   em.style.color = t.emcon ? 'var(--cyan)' : '';
+  const mv = el('dMove');
+  const mc = moveCost(t);
+  mv.textContent = 'MOVE ' + fmt$(mc);
+  mv.disabled = state !== 'build' || cash < mc;
+  mv.title = 'Redeploy this emplacement for ' + fmt$(mc) + ' (~10% of its value) [M] — between waves only';
   const pr = el('dPrio');
   if (showMode && t.optic) {
     pr.style.display = 'block';
@@ -2690,6 +2718,17 @@ function cycleModeT(t) {
   t.mode = MODE_ORDER[(MODE_ORDER.indexOf(t.mode) + 1) % MODE_ORDER.length];
   t.tg = null;
 }
+function moveTower(t, x, y) { // build-phase only today; recorded anyway for future-proofing
+  recAction('move', { i: towers.indexOf(t), x, y });
+  const c = moveCost(t);
+  cash -= c;
+  addSpend(t.k, c);
+  t.x = x; t.y = y;
+  t.tg = null; t.lastTg = null;
+  _pwr = '';
+  addText(x, y - 24, 'REDEPLOYED -$' + c, '#5fd8ff');
+  radioMsg(t.cs + ': DISPLACED TO NEW POSITION');
+}
 function setPrioT(t, v) {
   recAction('prio', { i: towers.indexOf(t), v: v || '' });
   t.prio = v || null;
@@ -2719,6 +2758,7 @@ function applyAction(a) {
   else if (a.a === 'mode') cycleModeT(t);
   else if (a.a === 'prio') setPrioT(t, a.v);
   else if (a.a === 'em') toggleEmconT(t);
+  else if (a.a === 'move') moveTower(t, a.x, a.y);
 }
 
 function doUpgrade() {
@@ -2729,8 +2769,17 @@ function doUpgrade() {
 }
 function doSell() {
   if (!sel) return;
+  if (movingT === sel) movingT = null;
   sellTower(sel);
   sel = null; refreshDetail(); sfx.click();
+}
+function startMove() {
+  if (!sel || state !== 'build' || gameMode === 'raid') return;
+  if (cash < moveCost(sel)) { sfx.deny(); return; }
+  movingT = sel;
+  placing = null;
+  document.querySelectorAll('.card').forEach(c => c.classList.remove('sel'));
+  sfx.click();
 }
 function isEmitter(t) { return t && (t.kind === 'radar' || t.kind === 'jam' || t.kind === 'sam'); }
 function toggleEmcon() {
@@ -2804,7 +2853,7 @@ const TIPS = [
   'ORACLE is a passive sensor — <b>Wasps can\'t home on it</b>. Radars and jammers still draw them.',
   '<b>Dazzler</b> damage ramps the longer it holds one target — set TGT: STRONGEST and let it cook.',
   'Press <b>R</b> between waves to repair the FOB: +10 integrity for $50. Cheaper than losing.',
-  'Selling refunds 70% — repositioning the grid between waves is a legitimate tactic.',
+  'Selling refunds 70%, but <b>MOVE [M]</b> redeploys a system for ~10% of its value. Repositioning the grid between waves is a legitimate tactic — the adaptive enemy is counting on you not to.',
   'The <b>⎘ chip</b> up top is a checkpoint code: click to copy, paste on the start screen to replay a wave with different tactics — or send it to someone else.',
   'Hold <b>SHIFT</b> while placing to build several. Press <b>T</b> to change a system\'s targeting priority.',
   'Weather is a sensor problem: <b>RAIN and FOG</b> choke EO/IR and lasers, <b>NIGHT</b> shortens the FOB\'s organic sensing — radar does not care. Check CONDITIONS in the intel strip.',
@@ -2880,6 +2929,17 @@ cv.addEventListener('pointerdown', ev => {
   if (replaying || state === 'menu' || state === 'over' || state === 'won' || state === 'rover') return;
   if (state === 'rdesign') return; // target grid is view-only; hover shows ranges
   const p = canvasXY(ev);
+  if (movingT) {
+    if (state !== 'build' || !towers.includes(movingT)) { movingT = null; return; }
+    const hasCov = !DIFFS[diffKey].fieldPwr || TT[movingT.k].draw === 0 || genCovered(p.x, p.y);
+    if (validPlace(p.x, p.y, movingT) && cash >= moveCost(movingT) && hasCov) {
+      moveTower(movingT, p.x, p.y);
+      movingT = null;
+      refreshDetail();
+      sfx.click();
+    } else sfx.deny();
+    return;
+  }
   if (placing) {
     const d = TT[placing];
     const hasPwr = d.draw === 0 || powerUsed() + d.draw <= powerCap();
@@ -2900,7 +2960,7 @@ cv.addEventListener('pointerdown', ev => {
 });
 cv.addEventListener('contextmenu', ev => {
   ev.preventDefault();
-  placing = null; sel = null; refreshDetail();
+  placing = null; sel = null; movingT = null; refreshDetail();
   document.querySelectorAll('.card').forEach(c => c.classList.remove('sel'));
 });
 
@@ -2931,8 +2991,9 @@ document.addEventListener('keydown', ev => {
   if (k >= '1' && k <= '9') { if (gameMode === 'raid') addRaidGroup(RKEYS[+k - 1]); else selectShop(TKEYS[+k - 1]); }
   else if (k === '0' && gameMode === 'raid') addRaidGroup(RKEYS[9]);
   else if (k === 'r') doRepair();
-  else if (k === 'escape') { placing = null; sel = null; refreshDetail();
+  else if (k === 'escape') { placing = null; sel = null; movingT = null; refreshDetail();
     document.querySelectorAll('.card').forEach(c => c.classList.remove('sel')); }
+  else if (k === 'm') startMove();
   else if (k === ' ') { ev.preventDefault(); if (state === 'build') startWave(); else if (state === 'rdesign') launchRaid(); else togglePause(); }
   else if (k === 'u') doUpgrade();
   else if (k === 'e') toggleEmcon();
@@ -3150,6 +3211,7 @@ el('dUp').addEventListener('click', doUpgrade);
 el('dMode').addEventListener('click', cycleMode);
 el('dSell').addEventListener('click', doSell);
 el('dEmcon').addEventListener('click', toggleEmcon);
+el('dMove').addEventListener('click', startMove);
 
 function restartGame() {
   const wasRaid = gameMode === 'raid';
@@ -3170,7 +3232,7 @@ function restartGame() {
   spent = 0; destroyed = 0; repairSpent = 0; resetSys();
   axisKills = { left: 0, top: 0, bottom: 0 }; axisLeaks = { left: 0, top: 0, bottom: 0 };
   intelBoost = false; reconEscaped = false; waveStartCode = ''; waveRec = null; simAcc = 0;
-  placing = null; sel = null; shake = 0; flash = 0; waveBanner = 0;
+  placing = null; sel = null; movingT = null; shake = 0; flash = 0; waveBanner = 0;
   applyDiff();
   _cash = -1; _hp = -1; _wave = ''; _host = ''; _pwr = ''; _xr = ''; saveCode = ''; saveTick = 0;
   el('btnSpeed').textContent = '1×'; el('btnPause').textContent = '❚❚';
@@ -3217,7 +3279,7 @@ function raidTargetSpec() {
 function enterRaidDesign(spec) {
   gameMode = 'raid';
   enemies = []; projs = []; birds = []; parts = []; texts = []; rings = []; tracers = []; spawnQ = [];
-  placing = null; sel = null; hoverT = null; paused = false; speed = 1;
+  placing = null; sel = null; hoverT = null; movingT = null; paused = false; speed = 1;
   radio = []; radioKillT = -9; radioDiveT = -9; waveTypesLogged.clear(); clockJumps = 0;
   resetAAR(); waveRec = null; runSnap = null; replaying = false;
   shake = 0; flash = 0; waveBanner = 0;

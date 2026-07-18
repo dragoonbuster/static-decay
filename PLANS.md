@@ -41,6 +41,10 @@ Living document. Update as plans evolve (project rule: keep track of plans).
   - Day cycle: mission clock starts D+3 04:20, advances 65 min per wave;
     night = clock hour < 05:30 or >= 19:30. Waves 1-2 are night, wave 15
     hits dusk. Weather odds per wave: CLEAR 60%, RAIN 25%, FOG 15%.
+- Tower MOVE (2026-07-18): redeploy for 10% of invested value (min $5,
+  rounds to $5), build phase only, same placement/coverage rules as
+  building. Cheaper than the 30% sell haircut; costs count into spent
+  like ammo/repairs, not into invested.
 - Skirmish balance is otherwise untouched. NOTE: environment on STANDARD+
   is a real (requested) balance change - existing leaderboard scores
   predate it. Version bumped to v0.9.

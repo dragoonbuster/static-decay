@@ -121,7 +121,7 @@ enterRaidDesign(raidTargetSpec());
 // synchronized time-on-target: slow mules first, escorts and divers timed to mass at the wire
 raid.groups.push(
   { type: 'mule', count: 4, edge: 'left', delay: 0, interval: 1.1 },
-  { type: 'static', count: 2, edge: 'left', delay: 9, interval: 1.1 },
+  { type: 'haze', count: 2, edge: 'left', delay: 9, interval: 1.1 },
   { type: 'specter', count: 4, edge: 'top', delay: 20, interval: 1.1 },
   { type: 'hornet', count: 10, edge: 'left', delay: 24, interval: 0.35 });
 raid.cost = raidCost();

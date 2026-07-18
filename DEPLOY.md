@@ -68,7 +68,7 @@ who opens the dev console — Firebase rules validate shape, not honesty.
 For an arcade board this is the right tradeoff. If you ever need
 cheat-resistant scores, that's the moment a ~40-line Cloudflare Worker (or
 Firebase Function) validating a submitted checkpoint code becomes worth it —
-the IP6 codes already contain enough state to sanity-check a claimed X-RATE.
+the SD1 codes already contain enough state to sanity-check a claimed X-RATE.
 
 ## 4. Leaderboard behavior (as shipped)
 

@@ -222,7 +222,7 @@
       <div id="diffDesc" style="font-size:10.5px;color:var(--dim);line-height:1.5;min-height:44px;margin-bottom:12px"></div>
       <div class="sub" style="margin-bottom:6px">RESUME FROM CHECKPOINT</div>
       <div class="ovrow" style="margin-bottom:16px">
-        <input id="loadCode" placeholder="paste checkpoint code (IP6…) — difficulty comes with it" spellcheck="false" autocomplete="off">
+        <input id="loadCode" placeholder="paste checkpoint code (SD1…) — difficulty comes with it" spellcheck="false" autocomplete="off">
         <button class="btn" id="btnLoad">⎗ LOAD</button>
       </div>
       <div id="loadErr">CODE REJECTED</div>
@@ -243,7 +243,7 @@
         <button class="btn" data-g="code">PASTE CODE</button>
       </div>
       <div class="ovrow" id="raidCodeRow" style="display:none;margin-bottom:8px">
-        <input id="raidCode" placeholder="paste a defense checkpoint (IP6…) to raid that grid" spellcheck="false" autocomplete="off">
+        <input id="raidCode" placeholder="paste a defense checkpoint (SD1…) to raid that grid" spellcheck="false" autocomplete="off">
       </div>
       <div class="sub" style="margin-bottom:6px">CONDITIONS — ATTACKER'S CHOICE</div>
       <div class="ovrow" style="margin-bottom:10px">
@@ -2210,11 +2210,11 @@ function encodeSave() {
     put(t.y / 4, 8);
   }
   const payload = b62enc(v);
-  return 'IP6' + payload + cksum(payload);
+  return 'SD1' + payload + cksum(payload);
 }
 function decodeSave(code) {
   code = (code || '').trim();
-  if (!code.startsWith('IP6') || code.length < 10) throw new Error('format');
+  if (!code.startsWith('SD1') || code.length < 10) throw new Error('format');
   const payload = code.slice(3, -2);
   if (cksum(payload) !== code.slice(-2)) throw new Error('checksum');
   let v = b62dec(payload);
@@ -2892,7 +2892,7 @@ const RAID_INFO = {
   proc1: 'Randomly generated grid, ~$700 invested. Fresh layout every time.',
   proc2: 'Randomly generated grid, ~$1200 invested. Fresh layout every time.',
   proc3: 'Randomly generated grid, ~$1800 invested. Fresh layout every time.',
-  code: 'Paste any defense checkpoint (IP6 code) and raid that exact grid — your own best run or a friend\'s.',
+  code: 'Paste any defense checkpoint (SD1 code) and raid that exact grid — your own best run or a friend\'s.',
 };
 document.querySelectorAll('#modeRow .btn').forEach(b => {
   b.addEventListener('click', () => {
@@ -2929,7 +2929,7 @@ el('btnRaidStart').addEventListener('click', () => {
   initAudio(); if (AC && AC.state === 'suspended') AC.resume();
   try { enterRaidDesign(raidTargetSpec()); sfx.horn(); }
   catch (e) {
-    el('raidInfo').innerHTML = '<span style="color:var(--red)">CODE REJECTED — paste a valid IP6 defense checkpoint.</span>';
+    el('raidInfo').innerHTML = '<span style="color:var(--red)">CODE REJECTED — paste a valid SD1 defense checkpoint.</span>';
     sfx.deny();
   }
 });

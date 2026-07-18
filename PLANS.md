@@ -14,7 +14,7 @@ Living document. Update as plans evolve (project rule: keep track of plans).
    - Instant replay of the last wave from the end screen.
 3. DONE (awaiting playtest) — RAID mode v1: design a drone raid under
    budget and fly it against AI defense grids (presets, procedural, or any
-   pasted IP6 checkpoint code). Offense X-RATE scoring, REWATCH,
+   pasted SD1 checkpoint code). Offense X-RATE scoring, REWATCH,
    RE-DESIGN. Headless suite: node test/run.js (45 checks).
 4. LATER — Campaign/theater layer: 3-5 FOBs on a front, system inventory,
    logistics/convoys, doctrine auto-resolve, enemy procurement adaptation

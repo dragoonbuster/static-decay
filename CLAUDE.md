@@ -1,7 +1,8 @@
 # STATIC DECAY (DroneDefender)
 
 Formerly IRON PERIMETER; renamed 2026-07-18. The checkpoint-code prefix
-stays "IP6" so existing codes keep loading — do not change it.
+switched from "IP6" to "SD1" at the same time (pre-deployment, so no
+codes were in the wild). Old IP6 codes no longer load.
 
 Counter-UAS tower-defense game. The entire game is one self-contained file,
 `index.html` (no build step, no assets, no dependencies beyond Google Fonts,
@@ -59,7 +60,7 @@ on (code, comments, commits, docs, chat).
   Raid flow: `enterRaidDesign` -> `launchRaid` -> `beginRaidCombat` ->
   `raidOver`; deterministic per `raid.seed` (REWATCH re-runs it).
 - Checkpoint codec: `encodeSave` / `decodeSave` pack the full run into a
-  base-62 "IP6..." string with a 2-char checksum. If you add fields, mind
+  base-62 "SD1..." string with a 2-char checksum. If you add fields, mind
   the bit widths and the validation in `decodeSave`. Raid mode reuses the
   codec: any pasted code becomes an attackable grid.
 - Leaderboard: `LB` adapter auto-detects Firebase / Claude artifact

@@ -178,6 +178,27 @@ restartGame();
   settings.snap = false;
 }
 
+/* tutorial + codex */
+T(TUT.length >= 18 && TUT.every(s => (typeof s.done === 'function') !== !!s.next), 'every tutorial step has exactly one advance mechanism');
+T(document.getElementById('cdxSys').innerHTML.includes('VULCAN') && document.getElementById('cdxSys').innerHTML.includes('GENERATOR'), 'codex systems built from catalog');
+T(document.getElementById('cdxUas').innerHTML.includes('KRAKEN') && document.getElementById('cdxUas').innerHTML.includes('HAZE'), 'codex drones built from catalog');
+startTutorial();
+T(tut && tut.i === 0 && state === 'build' && diffKey === 'ez' && gameMode === 'skirmish', 'tutorial starts a fresh EASY build');
+tutAdvance(); tutAdvance(); // past the two intro NEXT steps
+placeTower('vulcan', 990, 310); tutUpdate();
+T(tut.i === 3, 'advances on first vulcan');
+placeTower('vulcan', 990, 420); tutUpdate();
+T(tut.i === 4, 'advances on second vulcan');
+placeTower('radar', 950, 360); tutUpdate();
+T(tut.i === 5, 'advances on radar');
+startWave(); tutUpdate();
+T(tut.i === 6, 'advances on wave launch');
+ff(); tutUpdate();
+T(state === 'build' && tut.i === 7, 'advances on wave clear');
+endTutorial(false);
+T(tut === null, 'tutorial skippable');
+restartGame();
+
 /* presence net */
 {
   const cid = clientId();

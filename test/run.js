@@ -36,6 +36,7 @@ globalThis.document = {
   },
   createElement(tag) { return mkEl(tag); },
   querySelectorAll() { return []; },
+  querySelector() { return null; },
   addEventListener() {},
   body: mkEl('body'),
   documentElement: { style: { setProperty() {} } },

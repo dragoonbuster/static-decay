@@ -13,8 +13,8 @@
     --amber:#ffb454; --red:#ff4f4f; --cyan:#5fd8ff;
     --font-d:'Rajdhani','Arial Narrow',sans-serif;
     --font-m:'IBM Plex Mono','SF Mono',Consolas,monospace;
-    /* description-text scale targets (set from the settings menu) */
-    --fs-ds:9.5px; --fs-detail:10.5px; --fs-intel:11px;
+    /* description-text scale + card width targets (set from the settings menu) */
+    --fs-ds:9.5px; --fs-detail:10.5px; --fs-intel:11px; --card-w:224px;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
@@ -135,7 +135,7 @@
   #shop{display:flex; gap:8px; flex-wrap:nowrap; overflow-x:auto; flex:1}
   .card{
     background:var(--panel2); border:1px solid var(--line2); padding:7px 9px 6px;
-    width:112px; flex:0 0 112px; user-select:none; cursor:pointer; position:relative;
+    width:var(--card-w); flex:0 0 var(--card-w); user-select:none; cursor:pointer; position:relative;
   }
   .card:hover{border-color:var(--phos-dim)}
   .card.sel{border-color:var(--phos); box-shadow:0 0 12px rgba(125,255,171,.25)}
@@ -286,6 +286,14 @@
         <button class="btn" data-v="130">130%</button>
         <button class="btn" data-v="150">150%</button>
       </div>
+      <div class="sub" style="margin-bottom:4px">SHOP CARD WIDTH</div>
+      <div class="ovrow" data-set="cardw" style="margin-bottom:10px">
+        <button class="btn" data-v="50">0.5x</button>
+        <button class="btn" data-v="75">0.75x</button>
+        <button class="btn" data-v="100">1x</button>
+        <button class="btn" data-v="150">1.5x</button>
+        <button class="btn" data-v="200">2x</button>
+      </div>
       <div class="sub" style="margin-bottom:4px">HUD TEXT — RADIO LOG AND CLOCK</div>
       <div class="ovrow" data-set="hud" style="margin-bottom:10px">
         <button class="btn" data-v="100">100%</button>
@@ -403,7 +411,7 @@ const sri = (a, b) => Math.floor(sr(a, b + 1));
 
 /* ---------- settings (device-local, cosmetic/audio only — never sim) ---------- */
 const SETTINGS_KEY = 'ip_settings';
-const settings = { text: 100, hud: 100, vol: 50, radio: 'full', shake: true, scan: true };
+const settings = { text: 100, cardw: 100, hud: 100, vol: 50, radio: 'full', shake: true, scan: true };
 let settingsOpen = false;
 function saveSettings() {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { }
@@ -416,6 +424,7 @@ function applySettings() {
   rs.setProperty('--fs-ds', (9.5 * t).toFixed(1) + 'px');
   rs.setProperty('--fs-detail', (10.5 * t).toFixed(1) + 'px');
   rs.setProperty('--fs-intel', (11 * t).toFixed(1) + 'px');
+  rs.setProperty('--card-w', Math.round(224 * settings.cardw / 100) + 'px');
   document.body.classList.toggle('noscan', !settings.scan);
   if (master) master.gain.value = 0.5 * settings.vol / 100;
 }

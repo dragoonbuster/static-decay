@@ -66,6 +66,11 @@ on (code, comments, commits, docs, chat).
 - Leaderboard: `LB` adapter auto-detects Firebase / Claude artifact
   storage / localStorage / in-memory. Top 5 per difficulty, keyed by X-RATE
   (`destroyed / spent`), wave 5 minimum. Skirmish only; raids post nothing.
+- Presence net (`clientId` / `presenceBeat` / `refreshOperators`): anonymous
+  device id heartbeats to `/presence` during play, `/players` counts uniques
+  (create-only). Firebase mode only; every failure swallowed. Feedback goes
+  to `/feedback`, write-only. All wire data is sanitized before rendering
+  (`sanitizeEntry`) — keep it that way.
 
 ## Testing
 

@@ -96,6 +96,19 @@ server code.**
            "ts": { ".validate": "newData.isNumber()" },
            "$other": { ".validate": false }
          }
+       },
+       "presence": {
+         ".read": true,
+         "$cid": {
+           ".write": true,
+           ".validate": "$cid.matches(/^[a-f0-9]{16}$/) && newData.isNumber() && newData.val() >= now - 300000 && newData.val() <= now + 300000"
+         }
+       },
+       "players": {
+         "$cid": {
+           ".write": "!data.exists()",
+           ".validate": "$cid.matches(/^[a-f0-9]{16}$/) && newData.isNumber()"
+         }
        }
      }
    }
@@ -157,7 +170,26 @@ is real moderation volume, and doing one *safely* requires Firebase Auth
   (A–Z, 0–9); Enter or POST submits. Submissions re-read the board first,
   so a simultaneous poster can still bump you — the game tells you if so.
 
-## 5. PvP, later
+## 5. Player tracking (anonymous presence net)
+
+No accounts, no cookies-banner PII — each device generates a random
+16-hex id in localStorage:
+
+- `/presence/{id}` — heartbeat timestamp every 60s while a run is active
+  (not on the menu, not in hidden tabs). Publicly readable: it powers the
+  OPERATORS ON THE NET counter on the main menu (fresh = last 2.5 min).
+  Clients opportunistically delete stale entries; timestamps must be
+  within 5 minutes of server time to write.
+- `/players/{id}` — first-seen timestamp, create-only, one per device.
+  **Total unique players = child count of `/players`.** Read it in the
+  console (Data tab), or count keys via REST with a database secret
+  (Project settings -> Service accounts -> Database secrets):
+  `curl "https://signal-decay-8ea6a-default-rtdb.firebaseio.com/players.json?shallow=true&auth=SECRET"`
+
+Like the leaderboard, presence is spoofable without auth (someone could
+inflate the counter) — same accepted arcade tradeoff as section 3.
+
+## 6. PvP, later
 
 The `LB` adapter is the seam PvP will plug into: the same Firebase RTDB can
 hold "raid rooms" where one player's adaptive-attack parameters (or a

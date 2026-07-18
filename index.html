@@ -207,6 +207,7 @@
     <div class="ovbox">
       <h1>STATIC DECAY</h1>
       <div class="sub">COUNTER-UAS COMMAND · FOB "AEGIS" · D+3 04:20 LOCAL</div>
+      <div class="sub" id="opsNet" style="margin:-12px 0 14px;color:var(--phos-dim)"></div>
       <p>Hostile drone activity inbound on the western threat axis. You command the base
       air-defense grid: guns, missiles, jammers, lasers, microwave emitters, interceptor
       drones and the radar net that ties them together. Every system draws from a limited
@@ -523,6 +524,59 @@ function closeFeedback() {
   el('ovFeedback').classList.add('hide');
   if (fbReturn) el(fbReturn).classList.remove('hide');
   fbReturn = null;
+}
+
+/* ---------- anonymous presence net ----------
+   No accounts, no PII: a random device id heartbeats to /presence while a
+   run is active (powers the OPERATORS ON THE NET counter, public read),
+   and /players records first-seen once per device (create-only, console
+   read only). All failures are swallowed — analytics must never break
+   the game. Spoofable like the board; accepted arcade tradeoff. */
+const PRESENCE_FRESH = 150000; // "on the net" = heartbeat within 2.5 min
+let playerRegistered = false;
+function clientId() {
+  try {
+    let id = localStorage.getItem('sd_cid');
+    if (!id || !/^[a-f0-9]{16}$/.test(id)) {
+      id = Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');
+      localStorage.setItem('sd_cid', id);
+    }
+    return id;
+  } catch (e) { return null; }
+}
+function presenceActive() {
+  return LB.detect() === 'firebase' && !document.hidden &&
+    (state === 'build' || state === 'combat' || state === 'rdesign');
+}
+async function presenceBeat() {
+  const cid = clientId();
+  if (!cid || !presenceActive()) return;
+  try {
+    await fetch(NET.firebaseUrl.replace(/\/$/, '') + '/presence/' + cid + '.json',
+      { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: String(Date.now()) });
+    if (!playerRegistered) {
+      playerRegistered = true; // once per session; the server enforces once per device
+      await fetch(NET.firebaseUrl.replace(/\/$/, '') + '/players/' + cid + '.json',
+        { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: String(Date.now()) });
+    }
+  } catch (e) { }
+}
+async function refreshOperators() {
+  if (LB.detect() !== 'firebase') return;
+  try {
+    const r = await fetch(NET.firebaseUrl.replace(/\/$/, '') + '/presence.json');
+    const j = await r.json();
+    const nowT = Date.now();
+    let n = 0;
+    const stale = [];
+    for (const k in (j || {})) {
+      if (typeof j[k] === 'number' && nowT - j[k] < PRESENCE_FRESH) n++;
+      else if (/^[a-f0-9]{16}$/.test(k)) stale.push(k);
+    }
+    for (const k of stale.slice(0, 5)) // opportunistic pruning keeps /presence small
+      fetch(NET.firebaseUrl.replace(/\/$/, '') + '/presence/' + k + '.json', { method: 'DELETE' }).catch(() => { });
+    el('opsNet').textContent = n > 0 ? 'OPERATORS ON THE NET: ' + n : '';
+  } catch (e) { el('opsNet').textContent = ''; }
 }
 
 /* ---------- radio log + mission clock ---------- */
@@ -2375,6 +2429,7 @@ function applySave(s) {
   refreshDetail();
   state = 'build';
   prepareNext();
+  presenceBeat();
   el('tipbar').innerHTML = 'CHECKPOINT LOADED — resuming before wave ' + (wave + 1) + ' · ' + DIFFS[diffKey].name;
 }
 /* ================= wave replay =================
@@ -2966,6 +3021,7 @@ el('btnPauseMenu').addEventListener('click', () => {
   paused = false; el('ovPause').classList.add('hide'); el('btnPause').textContent = '❚❚';
   state = 'menu';
   el('ovMenu').classList.remove('hide');
+  refreshOperators();
   sfx.click();
 });
 el('btnSpeed').addEventListener('click', toggleSpeed);
@@ -2999,6 +3055,7 @@ el('btnToMenu').addEventListener('click', () => {
   el('ovDone').classList.add('hide');
   el('ovMenu').classList.remove('hide');
   state = 'menu';
+  refreshOperators();
   sfx.click();
 });
 document.querySelectorAll('#diffRow .btn').forEach(b => {
@@ -3122,6 +3179,7 @@ function restartGame() {
   refreshDetail();
   state = 'build';
   prepareNext();
+  presenceBeat();
 }
 
 /* ================= raid mode runtime ================= */
@@ -3196,6 +3254,7 @@ function enterRaidDesign(spec) {
   el('nextwave').innerHTML = '<b>TARGET:</b> ' + spec.name + ' — grid value $' + value +
     ' · FOB ' + baseMax + ' HP · your budget <b>$' + raid.budget + '</b> · defender wallet $' + raid.defStart;
   el('tipbar').innerHTML = 'RAID // click airframes to add groups · W/N/S axis · +Ns delay · SPACE launches';
+  presenceBeat();
 }
 function reenterRaidDesign() {
   const keep = raid.groups;
@@ -3224,6 +3283,7 @@ function raidGroupOp(i, op) {
     paused = false;
     state = 'menu';
     el('ovMenu').classList.remove('hide');
+    refreshOperators();
     sfx.click();
     return;
   }
@@ -3371,6 +3431,14 @@ function frame(now) {
 
 /* ================= boot ================= */
 loadSettings();
+setInterval(presenceBeat, 60000);
+setInterval(() => { if (state === 'menu') refreshOperators(); }, 45000);
+refreshOperators();
+if (window.addEventListener) window.addEventListener('beforeunload', () => {
+  const cid = clientId(); // best effort — staleness pruning covers the rest
+  if (cid && LB.detect() === 'firebase')
+    fetch(NET.firebaseUrl.replace(/\/$/, '') + '/presence/' + cid + '.json', { method: 'DELETE', keepalive: true }).catch(() => { });
+});
 if (!feedbackAvailable()) // no shared backend — nowhere for feedback to land
   ['btnMenuFeedback', 'btnPauseFeedback', 'btnDoneFeedback'].forEach(id => { el(id).style.display = 'none'; });
 resetSys();

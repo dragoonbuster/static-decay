@@ -151,6 +151,16 @@ restartGame();
 }
 T(feedbackAvailable() === true, 'feedback available with the firebase backend configured');
 
+/* presence net */
+{
+  const cid = clientId();
+  T(typeof cid === 'string' && /^[a-f0-9]{16}$/.test(cid), 'client id well-formed (' + cid + ')');
+  T(presenceActive() === true, 'presence active during play');
+  const _s = state; state = 'menu';
+  T(presenceActive() === false, 'presence inactive on the menu');
+  state = _s;
+}
+
 console.log('');
 console.log(__passes + ' passed, ' + __fails + ' failed');
 process.exit(__fails ? 1 : 0);

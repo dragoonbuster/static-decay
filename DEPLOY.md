@@ -6,7 +6,7 @@ at full speed.
 
 ## 0. Production setup: signaldecay.xyz via GitHub Pages (live config)
 
-The repo is https://github.com/dragoonbuster/static-decay and GitHub Pages
+The repo is https://github.com/dragoonbuster/signal-decay and GitHub Pages
 serves `main` at the root, so **every `git push` deploys automatically**.
 The `CNAME` file in the repo pins the custom domain (signaldecay.xyz,
 matching the game title SIGNAL DECAY).

@@ -8,7 +8,11 @@
      wire data before it reaches innerHTML (see sanitizeEntry). -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.firebaseio.com https://*.firebasedatabase.app; base-uri 'none'; form-action 'none'">
 <title>SIGNAL DECAY — Counter-UAS Command</title>
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- async font load: never render-block on Google Fonts; system fonts stand in -->
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet"></noscript>
 <style>
   :root{
     --field:#070b09; --panel:#0c1310; --panel2:#101a15; --line:#1e2b23; --line2:#2c4033;
@@ -34,6 +38,16 @@
     mix-blend-mode:multiply;
   }
   body.noscan::after{display:none}
+  /* boot screen: pure CSS, shows while the file streams and the script parses */
+  #boot{position:fixed; inset:0; z-index:99; background:#070b09; display:flex;
+    align-items:center; justify-content:center; transition:opacity .45s}
+  #boot.done{opacity:0; pointer-events:none}
+  #bootBox{text-align:center}
+  #bootTitle{font-family:var(--font-d); font-weight:700; font-size:30px; letter-spacing:.16em; color:#7dffab}
+  #bootSub{font-family:var(--font-m); font-size:10px; letter-spacing:.3em; color:#7d8d80; margin-top:6px}
+  #bootBar{width:230px; height:3px; border:1px solid #2c4033; margin:16px auto 0; overflow:hidden}
+  #bootBar i{display:block; height:100%; width:38%; background:#7dffab; animation:bootslide 1.1s linear infinite}
+  @keyframes bootslide{0%{transform:translateX(-110%)}100%{transform:translateX(370%)}}
   button{font-family:var(--font-d); cursor:pointer}
 
   /* ---------- top status rail ---------- */
@@ -199,6 +213,15 @@
 </style>
 </head>
 <body>
+
+<div id="boot">
+  <div id="bootBox">
+    <div id="bootTitle">SIGNAL DECAY</div>
+    <div id="bootSub">ESTABLISHING UPLINK</div>
+    <div id="bootBar"><i></i></div>
+    <noscript><div style="color:#ff4f4f;font-family:monospace;font-size:11px;margin-top:14px">JAVASCRIPT REQUIRED — THE UPLINK STAYS DARK WITHOUT IT</div></noscript>
+  </div>
+</div>
 
 <header id="top">
   <div id="brand">SIGNAL DECAY<small>COUNTER-UAS COMMAND · v0.9</small></div>
@@ -3767,6 +3790,9 @@ buildPrioOptions();
 prepareNext();
 refreshDetail();
 requestAnimationFrame(frame);
+// boot complete — fade the loading screen (it covered download + parse time)
+el('boot').classList.add('done');
+setTimeout(() => { el('boot').style.display = 'none'; }, 500);
 </script>
 </body>
 </html>

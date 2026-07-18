@@ -1,4 +1,7 @@
-# IRON PERIMETER (DroneDefender)
+# STATIC DECAY (DroneDefender)
+
+Formerly IRON PERIMETER; renamed 2026-07-18. The checkpoint-code prefix
+stays "IP6" so existing codes keep loading — do not change it.
 
 Counter-UAS tower-defense game. The entire game is one self-contained file,
 `index.html` (no build step, no assets, no dependencies beyond Google Fonts,

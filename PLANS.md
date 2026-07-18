@@ -1,4 +1,4 @@
-# IRON PERIMETER — Development Plans
+# STATIC DECAY — Development Plans
 
 Living document. Update as plans evolve (project rule: keep track of plans).
 

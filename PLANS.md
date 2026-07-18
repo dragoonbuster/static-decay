@@ -86,4 +86,7 @@ Living document. Update as plans evolve (project rule: keep track of plans).
   exit replay early, confirm end screen restores.
 - Raid: beat GUN LINE preset with mixed raid; wasps kill radar; decoys
   drain SAM wallet; paste own skirmish checkpoint and raid it.
+- Raid designer: MENU button and pause menu both exit without launching.
+- Settings (pause menu): UI scale, HUD text, volume, radio density,
+  screen shake, scanlines - all persist across reloads (localStorage).
 - Leaderboard still posts from skirmish only.

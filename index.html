@@ -27,6 +27,7 @@
     background:repeating-linear-gradient(0deg, rgba(0,0,0,0) 0 2px, rgba(0,0,0,.14) 2px 3px);
     mix-blend-mode:multiply;
   }
+  body.noscan::after{display:none}
   button{font-family:var(--font-d); cursor:pointer}
 
   /* ---------- top status rail ---------- */
@@ -132,14 +133,15 @@
   #shop{display:flex; gap:8px; flex-wrap:nowrap; overflow-x:auto; flex:1}
   .card{
     background:var(--panel2); border:1px solid var(--line2); padding:7px 9px 6px;
-    min-width:118px; user-select:none; cursor:pointer; position:relative; flex:0 0 auto;
+    width:112px; flex:0 0 112px; user-select:none; cursor:pointer; position:relative;
   }
   .card:hover{border-color:var(--phos-dim)}
   .card.sel{border-color:var(--phos); box-shadow:0 0 12px rgba(125,255,171,.25)}
   .card.off{opacity:.38; cursor:not-allowed}
   .card .nm{font-family:var(--font-d); font-weight:700; font-size:13px; letter-spacing:.06em}
   .card .cost{color:var(--amber); font-size:12px; font-weight:600}
-  .card .ds{color:var(--dim); font-size:9.5px; line-height:1.35; margin-top:3px; height:26px}
+  .card .ds{color:var(--dim); font-size:9.5px; line-height:1.35; margin-top:3px;
+    min-height:26px; max-height:52px; overflow:hidden}
   .card .hk{position:absolute; top:5px; right:6px; font-size:9px; color:var(--dim);
     border:1px solid var(--line2); padding:0 4px}
   #detail{flex:0 0 285px; border:1px solid var(--line2); background:var(--panel2);
@@ -264,9 +266,54 @@
       <div class="ovrow" style="flex-direction:column;align-items:stretch;gap:8px">
         <button class="btn primary" id="btnResume">▶ RESUME</button>
         <button class="btn" id="btnPauseSave" style="font-family:var(--font-m);text-transform:none;letter-spacing:0">⎘ COPY CHECKPOINT</button>
+        <button class="btn" id="btnPauseSettings">SETTINGS</button>
         <button class="btn" id="btnPauseRestart">↺ RESTART RUN</button>
         <button class="btn" id="btnPauseMenu">⌂ MAIN MENU</button>
       </div>
+    </div>
+  </div>
+
+  <div class="ov hide" id="ovSettings">
+    <div class="ovbox" style="max-width:480px">
+      <h1 style="font-size:26px">SETTINGS</h1>
+      <div class="sub" style="margin-bottom:12px">SAVED ON THIS DEVICE</div>
+      <div class="sub" style="margin-bottom:4px">UI SCALE — PANELS AND MENUS</div>
+      <div class="ovrow" data-set="ui" style="margin-bottom:10px">
+        <button class="btn" data-v="90">90%</button>
+        <button class="btn" data-v="100">100%</button>
+        <button class="btn" data-v="110">110%</button>
+        <button class="btn" data-v="125">125%</button>
+      </div>
+      <div class="sub" style="margin-bottom:4px">HUD TEXT — RADIO LOG AND CLOCK</div>
+      <div class="ovrow" data-set="hud" style="margin-bottom:10px">
+        <button class="btn" data-v="100">100%</button>
+        <button class="btn" data-v="125">125%</button>
+        <button class="btn" data-v="150">150%</button>
+      </div>
+      <div class="sub" style="margin-bottom:4px">VOLUME</div>
+      <div class="ovrow" data-set="vol" style="margin-bottom:10px">
+        <button class="btn" data-v="0">OFF</button>
+        <button class="btn" data-v="25">25%</button>
+        <button class="btn" data-v="50">50%</button>
+        <button class="btn" data-v="100">100%</button>
+      </div>
+      <div class="sub" style="margin-bottom:4px">RADIO LOG</div>
+      <div class="ovrow" data-set="radio" style="margin-bottom:10px">
+        <button class="btn" data-v="off">OFF</button>
+        <button class="btn" data-v="sparse">SPARSE</button>
+        <button class="btn" data-v="full">FULL</button>
+      </div>
+      <div class="sub" style="margin-bottom:4px">SCREEN SHAKE</div>
+      <div class="ovrow" data-set="shake" style="margin-bottom:10px">
+        <button class="btn" data-v="off">OFF</button>
+        <button class="btn" data-v="on">ON</button>
+      </div>
+      <div class="sub" style="margin-bottom:4px">CRT SCANLINES</div>
+      <div class="ovrow" data-set="scan" style="margin-bottom:14px">
+        <button class="btn" data-v="off">OFF</button>
+        <button class="btn" data-v="on">ON</button>
+      </div>
+      <div class="ovrow"><button class="btn primary" id="btnSettingsBack">BACK</button></div>
     </div>
   </div>
 
@@ -352,6 +399,41 @@ let simRand = mulberry32(1);
 const sr = (a, b) => a + simRand() * (b - a);
 const sri = (a, b) => Math.floor(sr(a, b + 1));
 
+/* ---------- settings (device-local, cosmetic/audio only — never sim) ---------- */
+const SETTINGS_KEY = 'ip_settings';
+const settings = { ui: 100, hud: 100, vol: 50, radio: 'full', shake: true, scan: true };
+let settingsOpen = false;
+function saveSettings() {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { }
+}
+function applySettings() {
+  document.body.style.zoom = settings.ui / 100;
+  document.body.classList.toggle('noscan', !settings.scan);
+  if (master) master.gain.value = 0.5 * settings.vol / 100;
+}
+function loadSettings() {
+  try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}); } catch (e) { }
+  applySettings();
+}
+function syncSettingsUI() {
+  document.querySelectorAll('#ovSettings .ovrow[data-set]').forEach(row => {
+    const key = row.dataset.set;
+    const cur = (key === 'shake' || key === 'scan') ? (settings[key] ? 'on' : 'off') : String(settings[key]);
+    row.querySelectorAll('.btn').forEach(b => b.classList.toggle('on', b.dataset.v === cur));
+  });
+}
+function openSettings() {
+  settingsOpen = true;
+  syncSettingsUI();
+  el('ovPause').classList.add('hide');
+  el('ovSettings').classList.remove('hide');
+}
+function closeSettings() {
+  settingsOpen = false;
+  el('ovSettings').classList.add('hide');
+  if (paused) el('ovPause').classList.remove('hide');
+}
+
 /* ---------- radio log + mission clock ---------- */
 const CSNAMES = { vulcan: 'VULCAN', sam: 'JAVELIN', laser: 'DAZZLER', pulse: 'PULSE',
   jammer: 'SCRAMBLER', falcon: 'FALCON', radar: 'SENTINEL', optic: 'ORACLE', gen: 'GENSET' };
@@ -366,6 +448,7 @@ function clockStr() {
     String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
 }
 function radioMsg(txt) {
+  if (settings.radio === 'off') return;
   radio.push({ txt: '[' + clockStr().slice(-5) + '] ' + txt, born: time });
   if (radio.length > 30) radio.shift();
 }
@@ -412,7 +495,7 @@ function initAudio() {
   if (AC) return;
   try {
     AC = new (window.AudioContext || window.webkitAudioContext)();
-    master = AC.createGain(); master.gain.value = 0.5; master.connect(AC.destination);
+    master = AC.createGain(); master.gain.value = 0.5 * settings.vol / 100; master.connect(AC.destination);
   } catch (e) { AC = null; }
 }
 function tone(f0, f1, dur, type, vol) {
@@ -718,7 +801,7 @@ function onKill(e) {
   if (e.lastHit && SYS_STATS[e.lastHit]) SYS_STATS[e.lastHit].kills++;
   const csrc = e.lastHitT && e.lastHitT.cs ? e.lastHitT.cs : 'GRID';
   const notable = e.boss || e.recon || e.sead || e.aura || e.spawner || e.stealth;
-  if (notable || time > radioKillT + 2.5) {
+  if (notable || (settings.radio === 'full' && time > radioKillT + 2.5)) {
     radioKillT = time;
     radioMsg(csrc + ': SPLASH ' + e.name + (e.recon ? ' — RECON DENIED' : e.boss ? ' — GRID SLAYER' : ''));
   }
@@ -928,7 +1011,7 @@ function updEnemies(dt) {
     if (conf) {
       if (e.revealT <= 0 && state === 'combat' && !waveTypesLogged.has(e.type)) {
         waveTypesLogged.add(e.type);
-        radioMsg('SENTINEL NET: TRACK CONFIRMED — ' + e.name);
+        if (settings.radio === 'full') radioMsg('SENTINEL NET: TRACK CONFIRMED — ' + e.name);
       }
       e.revealT = 0.6; // track persistence on the datalink
     }
@@ -1795,7 +1878,7 @@ function validPlace(x, y) {
 
 function render() {
   ctx.save();
-  if (shake > 0) ctx.translate(rand(-1, 1) * shake * 6, rand(-1, 1) * shake * 6);
+  if (shake > 0 && settings.shake) ctx.translate(rand(-1, 1) * shake * 6, rand(-1, 1) * shake * 6);
   ctx.drawImage(bg, 0, 0);
   drawAuras();
   drawBase();
@@ -1902,28 +1985,30 @@ function render() {
     }
     ctx.stroke();
   }
-  // mission clock + radio log (HUD, unshaken)
+  // mission clock + radio log (HUD, unshaken; text scales with settings.hud)
   if (state !== 'menu') {
-    ctx.font = '10px IBM Plex Mono'; ctx.textAlign = 'left';
+    const hf = settings.hud / 100, lh = Math.round(13 * hf), fs = Math.round(10 * hf);
+    ctx.font = fs + 'px IBM Plex Mono'; ctx.textAlign = 'left';
     ctx.fillStyle = 'rgba(125,255,171,0.5)';
     ctx.fillText(clockStr() + ' LOCAL' + (envEnabled() || gameMode === 'raid' ? ' · ' + (env.night ? 'NIGHT' : 'DAY') +
-      (env.wx !== 'CLEAR' ? ' · ' + env.wx : '') : ''), 10, 28);
+      (env.wx !== 'CLEAR' ? ' · ' + env.wx : '') : ''), 10, 18 + fs);
     if (env.sense < 1 || env.optic < 1 || env.laser < 1) {
       const bits = [];
       if (env.sense < 1) bits.push('SENSE ' + Math.round((env.sense - 1) * 100) + '%');
       if (env.optic < 1) bits.push('EO/IR ' + Math.round((env.optic - 1) * 100) + '%');
       if (env.laser < 1) bits.push('HEL ' + Math.round((env.laser - 1) * 100) + '%');
       ctx.fillStyle = 'rgba(95,216,255,0.45)';
-      ctx.fillText(bits.join(' · '), 10, 41);
+      ctx.fillText(bits.join(' · '), 10, 18 + fs + lh);
     }
     const rN = Math.min(6, radio.length);
     for (let i = 0; i < rN; i++) {
       const r = radio[radio.length - rN + i];
       const age = time - r.born;
       if (age > 10) continue;
+      const ry = H - 24 - (rN - 1 - i) * lh;
       ctx.globalAlpha = clamp(1.2 - age / 10, 0, 1) * 0.85;
-      ctx.fillStyle = '#060a08'; ctx.fillText(r.txt, 11, H - 92 + i * 13 + 1);
-      ctx.fillStyle = '#8fd8a8'; ctx.fillText(r.txt, 10, H - 92 + i * 13);
+      ctx.fillStyle = '#060a08'; ctx.fillText(r.txt, 11, ry + 1);
+      ctx.fillStyle = '#8fd8a8'; ctx.fillText(r.txt, 10, ry);
     }
     ctx.globalAlpha = 1;
     if (replaying) {
@@ -2674,6 +2759,7 @@ document.addEventListener('keydown', ev => {
   if (state === 'menu') { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); el('btnStart').click(); } return; }
   if (state === 'over' || state === 'won' || state === 'rover') return;
   const k = ev.key.toLowerCase();
+  if (settingsOpen) { if (k === 'escape') closeSettings(); return; }
   if (replaying) { // spectator controls only
     if (k === 'escape') { if (gameMode === 'raid') fastForwardRaid(); else finishReplay(); }
     else if (k === ' ') { ev.preventDefault(); togglePause(); }
@@ -2697,12 +2783,12 @@ document.addEventListener('keydown', ev => {
 
 let restartArm = 0;
 function togglePause() {
-  if (state !== 'combat' && state !== 'build') return;
+  if (state !== 'combat' && state !== 'build' && state !== 'rdesign') return;
   paused = !paused;
   el('btnPause').textContent = paused ? '▶' : '❚❚';
   el('ovPause').classList.toggle('hide', !paused);
   if (paused) {
-    el('pauseSub').textContent = gameMode === 'raid' ? 'RAID IN PROGRESS'
+    el('pauseSub').textContent = gameMode === 'raid' ? (state === 'rdesign' ? 'RAID PLANNING' : 'RAID IN PROGRESS')
       : state === 'combat'
         ? 'WAVE ' + wave + ' IN PROGRESS — checkpoint = as launched'
         : 'BUILD PHASE — checkpoint = current state';
@@ -2718,6 +2804,19 @@ function toggleSpeed() {
 el('btnWave').addEventListener('click', () => { initAudio(); startWave(); });
 el('btnPause').addEventListener('click', togglePause);
 el('btnResume').addEventListener('click', togglePause);
+el('btnPauseSettings').addEventListener('click', () => { openSettings(); sfx.click(); });
+el('btnSettingsBack').addEventListener('click', () => { closeSettings(); sfx.click(); });
+document.querySelectorAll('#ovSettings .ovrow[data-set]').forEach(row => {
+  row.querySelectorAll('.btn').forEach(b => {
+    b.addEventListener('click', () => {
+      const key = row.dataset.set, v = b.dataset.v;
+      if (key === 'shake' || key === 'scan') settings[key] = v === 'on';
+      else if (key === 'radio') settings[key] = v;
+      else settings[key] = +v;
+      applySettings(); saveSettings(); syncSettingsUI(); sfx.click();
+    });
+  });
+});
 el('btnPauseSave').addEventListener('click', () => {
   // mid-wave: the state as this wave was launched; build phase: right now
   const code = (state === 'combat' && waveStartCode) ? waveStartCode : encodeSave();
@@ -2994,6 +3093,13 @@ function addRaidGroup(ty) {
 }
 function raidGroupOp(i, op) {
   if (state !== 'rdesign' || !raid) return;
+  if (op === 'menu') { // abort planning, nothing to lose but the manifest
+    paused = false;
+    state = 'menu';
+    el('ovMenu').classList.remove('hide');
+    sfx.click();
+    return;
+  }
   if (op === 'launch') { launchRaid(); return; }
   if (op === 'clear') { raid.groups = []; updateRaidPanel(); sfx.click(); return; }
   const g = raid.groups[i];
@@ -3030,7 +3136,8 @@ function updateRaidPanel() {
   });
   html += '<div style="display:flex;gap:6px;margin-top:6px">' +
     '<button class="btn primary rbtn" data-op="launch" style="flex:1;padding:5px">LAUNCH RAID</button>' +
-    '<button class="btn rbtn" data-op="clear">CLEAR</button></div>';
+    '<button class="btn rbtn" data-op="clear">CLEAR</button>' +
+    '<button class="btn rbtn" data-op="menu" title="Abort planning — back to the main menu">MENU</button></div>';
   const ds = el('dStats');
   ds.style.overflowY = 'auto';
   ds.innerHTML = html;
@@ -3136,6 +3243,7 @@ function frame(now) {
 }
 
 /* ================= boot ================= */
+loadSettings();
 resetSys();
 buildShop();
 buildPrioOptions();

@@ -38,6 +38,7 @@ globalThis.document = {
   querySelectorAll() { return []; },
   addEventListener() {},
   body: mkEl('body'),
+  documentElement: { style: { setProperty() {} } },
 };
 globalThis.window = globalThis;
 globalThis.localStorage = { setItem() {}, getItem() { return null; }, removeItem() {} };

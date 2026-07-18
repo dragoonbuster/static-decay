@@ -13,6 +13,8 @@
     --amber:#ffb454; --red:#ff4f4f; --cyan:#5fd8ff;
     --font-d:'Rajdhani','Arial Narrow',sans-serif;
     --font-m:'IBM Plex Mono','SF Mono',Consolas,monospace;
+    /* description-text scale targets (set from the settings menu) */
+    --fs-ds:9.5px; --fs-detail:10.5px; --fs-intel:11px;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
@@ -118,7 +120,7 @@
   /* ---------- intel strip ---------- */
   #intel{flex:0 0 auto; display:flex; align-items:center; gap:12px;
     background:#0a100d; border-top:1px solid var(--line); padding:5px 14px;
-    font-size:11px; min-height:30px}
+    font-size:var(--fs-intel); min-height:30px}
   #intel .tag{font-family:var(--font-d); font-weight:700; letter-spacing:.18em; font-size:11px;
     color:var(--red); border:1px solid rgba(255,79,79,.4); padding:2px 8px; flex:0 0 auto}
   #nextwave{color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1}
@@ -140,8 +142,8 @@
   .card.off{opacity:.38; cursor:not-allowed}
   .card .nm{font-family:var(--font-d); font-weight:700; font-size:13px; letter-spacing:.06em}
   .card .cost{color:var(--amber); font-size:12px; font-weight:600}
-  .card .ds{color:var(--dim); font-size:9.5px; line-height:1.35; margin-top:3px;
-    min-height:26px; max-height:52px; overflow:hidden}
+  .card .ds{color:var(--dim); font-size:var(--fs-ds); line-height:1.35; margin-top:3px;
+    min-height:2.75em; max-height:5.5em; overflow:hidden}
   .card .hk{position:absolute; top:5px; right:6px; font-size:9px; color:var(--dim);
     border:1px solid var(--line2); padding:0 4px}
   #detail{flex:0 0 285px; border:1px solid var(--line2); background:var(--panel2);
@@ -149,7 +151,7 @@
   #detail.hide *{visibility:hidden}
   #dName{font-family:var(--font-d); font-weight:700; font-size:14px; letter-spacing:.06em; color:var(--phos)}
   #dName span{color:var(--dim); font-size:11px}
-  #dStats{font-size:10.5px; color:var(--ink); line-height:1.45; white-space:pre-line; flex:1}
+  #dStats{font-size:var(--fs-detail); color:var(--ink); line-height:1.45; white-space:pre-line; flex:1; overflow-y:auto}
   #dRow{display:flex; gap:6px}
   #dRow .btn{padding:5px 8px; font-size:11px; flex:1}
   #dSell{color:var(--amber)}
@@ -277,12 +279,12 @@
     <div class="ovbox" style="max-width:480px">
       <h1 style="font-size:26px">SETTINGS</h1>
       <div class="sub" style="margin-bottom:12px">SAVED ON THIS DEVICE</div>
-      <div class="sub" style="margin-bottom:4px">UI SCALE — PANELS AND MENUS</div>
-      <div class="ovrow" data-set="ui" style="margin-bottom:10px">
-        <button class="btn" data-v="90">90%</button>
+      <div class="sub" style="margin-bottom:4px">DESCRIPTION TEXT — SHOP CARDS / DETAIL / INTEL</div>
+      <div class="ovrow" data-set="text" style="margin-bottom:10px">
         <button class="btn" data-v="100">100%</button>
-        <button class="btn" data-v="110">110%</button>
-        <button class="btn" data-v="125">125%</button>
+        <button class="btn" data-v="115">115%</button>
+        <button class="btn" data-v="130">130%</button>
+        <button class="btn" data-v="150">150%</button>
       </div>
       <div class="sub" style="margin-bottom:4px">HUD TEXT — RADIO LOG AND CLOCK</div>
       <div class="ovrow" data-set="hud" style="margin-bottom:10px">
@@ -401,13 +403,19 @@ const sri = (a, b) => Math.floor(sr(a, b + 1));
 
 /* ---------- settings (device-local, cosmetic/audio only — never sim) ---------- */
 const SETTINGS_KEY = 'ip_settings';
-const settings = { ui: 100, hud: 100, vol: 50, radio: 'full', shake: true, scan: true };
+const settings = { text: 100, hud: 100, vol: 50, radio: 'full', shake: true, scan: true };
 let settingsOpen = false;
 function saveSettings() {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { }
 }
 function applySettings() {
-  document.body.style.zoom = settings.ui / 100;
+  // scale only the small descriptive text — whole-layout zoom pushes the
+  // bottom panels off a fixed-viewport flex page
+  const t = settings.text / 100;
+  const rs = document.documentElement.style;
+  rs.setProperty('--fs-ds', (9.5 * t).toFixed(1) + 'px');
+  rs.setProperty('--fs-detail', (10.5 * t).toFixed(1) + 'px');
+  rs.setProperty('--fs-intel', (11 * t).toFixed(1) + 'px');
   document.body.classList.toggle('noscan', !settings.scan);
   if (master) master.gain.value = 0.5 * settings.vol / 100;
 }

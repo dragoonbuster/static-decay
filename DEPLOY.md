@@ -4,13 +4,16 @@ The game is a single self-contained HTML file with no build step, no assets,
 and no server code. Anything that can serve a static file can serve this game
 at full speed.
 
-## 0. Production setup: staticdecay.xyz via GitHub Pages (live config)
+## 0. Production setup: signaldecay.xyz via GitHub Pages (live config)
 
 The repo is https://github.com/dragoonbuster/static-decay and GitHub Pages
 serves `main` at the root, so **every `git push` deploys automatically**.
-The `CNAME` file in the repo pins the custom domain.
+The `CNAME` file in the repo pins the custom domain (signaldecay.xyz —
+the game is titled STATIC DECAY but the deployed domain is signaldecay).
 
-One-time DNS at the registrar for staticdecay.xyz:
+One-time DNS at the registrar (Namecheap) for signaldecay.xyz — delete
+the default parking records first (the `URL Redirect` on `@` and the
+`www` CNAME to parkingpage.namecheap.com both conflict):
 
 - Four `A` records on the apex (`@`), one per GitHub Pages IP:
   `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`
@@ -18,8 +21,8 @@ One-time DNS at the registrar for staticdecay.xyz:
   (GitHub then redirects www to the apex).
 
 After DNS propagates (minutes to an hour), GitHub auto-issues the TLS
-certificate; then tick **Enforce HTTPS** in repo Settings -> Pages.
-Fallback URL while DNS settles: https://dragoonbuster.github.io/static-decay/
+certificate; then tick **Enforce HTTPS** in repo Settings -> Pages
+(or ask Claude to flip it via the API).
 
 REMINDER: the site-wide leaderboard is NOT live until a Firebase URL is
 pasted into `NET` (section 2, Mode B). Until then every visitor gets a

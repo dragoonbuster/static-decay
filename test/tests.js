@@ -179,24 +179,77 @@ restartGame();
 }
 
 /* tutorial + codex */
-T(TUT.length >= 18 && TUT.every(s => (typeof s.done === 'function') !== !!s.next), 'every tutorial step has exactly one advance mechanism');
+T(TUT.length >= 20 && TUT.every(s => (typeof s.done === 'function') !== !!s.next), 'every skirmish tutorial step has exactly one advance mechanism');
+T(TUTR.length >= 8 && TUTR.every(s => (typeof s.done === 'function') !== !!s.next), 'every raid tutorial step has exactly one advance mechanism');
 T(document.getElementById('cdxSys').innerHTML.includes('VULCAN') && document.getElementById('cdxSys').innerHTML.includes('GENERATOR'), 'codex systems built from catalog');
 T(document.getElementById('cdxUas').innerHTML.includes('KRAKEN') && document.getElementById('cdxUas').innerHTML.includes('HAZE'), 'codex drones built from catalog');
 startTutorial();
-T(tut && tut.i === 0 && state === 'build' && diffKey === 'ez' && gameMode === 'skirmish', 'tutorial starts a fresh EASY build');
-tutAdvance(); tutAdvance(); // past the two intro NEXT steps
+T(tut && tut.i === 0 && tut.s === TUT && state === 'build' && diffKey === 'ez' && gameMode === 'skirmish', 'tutorial starts a fresh EASY build');
+tutAdvance(); tutAdvance(); tutAdvance(); tutAdvance(); // past the four intro NEXT steps
 placeTower('vulcan', 990, 310); tutUpdate();
-T(tut.i === 3, 'advances on first vulcan');
+T(tut.i === 5, 'advances on first vulcan');
 placeTower('vulcan', 990, 420); tutUpdate();
-T(tut.i === 4, 'advances on second vulcan');
+T(tut.i === 6, 'advances on second vulcan');
 placeTower('radar', 950, 360); tutUpdate();
-T(tut.i === 5, 'advances on radar');
+T(tut.i === 7, 'advances on radar');
 startWave(); tutUpdate();
-T(tut.i === 6, 'advances on wave launch');
+T(tut.i === 8, 'advances on wave launch');
 ff(); tutUpdate();
-T(state === 'build' && tut.i === 7, 'advances on wave clear');
+T(state === 'build' && tut.i === 9, 'advances on wave clear');
 endTutorial(false);
 T(tut === null, 'tutorial skippable');
+restartGame();
+
+/* raid tutorial */
+startRaidTutorial();
+T(tut && tut.s === TUTR && state === 'rdesign' && gameMode === 'raid', 'raid tutorial opens the designer on GUN LINE');
+tutAdvance(); tutAdvance(); // past the two intro NEXT steps
+addRaidGroup('hornet'); tutUpdate();
+T(tut.i === 3, 'raid tut advances on hornets');
+addRaidGroup('mule'); tutUpdate();
+T(tut.i === 4, 'raid tut advances on mules');
+tutAdvance(); // axis/timing NEXT
+addRaidGroup('wasp'); tutUpdate();
+T(tut.i === 6, 'raid tut advances on wasps');
+launchRaid(); tutUpdate();
+T(tut.i === 7, 'raid tut advances on launch');
+ff(400000); tutUpdate();
+T(state === 'rover' && tut === null, 'raid tut completes at assessment');
+restartGame();
+
+/* auto-launch */
+diffKey = 'ez'; restartGame();
+placeTower('vulcan', 1000, 300); placeTower('vulcan', 1000, 420); placeTower('radar', 950, 360);
+settings.auto = 'instant';
+startWave(); ff();
+T(state === 'build' && autoAt > 0, 'auto-launch armed after wave clear');
+time = autoAt + 0.01;
+refreshTop();
+T(state === 'combat' && wave === 2, 'auto-launch fires the next wave');
+settings.auto = 'off'; autoAt = 0;
+ff(); restartGame();
+
+/* oracle override */
+diffKey = 'ez'; restartGame();
+placeTower('optic', 700, 300); placeTower('vulcan', 700, 360);
+towers[0].prio = 'wasp'; towers[0].override = true;
+stepSim();
+T(towers[1].prioForced === 'wasp', 'oracle override forces linked weapon priority');
+towers[0].override = false;
+stepSim();
+T(towers[1].prioForced === null, 'override toggles off');
+{
+  towers[0].override = true;
+  const cOn = encodeSave();
+  towers[0].override = false;
+  const cOff = encodeSave();
+  applySave(decodeSave(cOn));
+  T(towers[0].k === 'optic' && towers[0].override === true, 'override=on survives the codec');
+  applySave(decodeSave(cOff));
+  T(towers[0].override === false, 'override=off survives the codec');
+}
+setModeT(towers[1], 'weak');
+T(towers[1].mode === 'weak', 'setModeT applies a direct mode (bulk orders)');
 restartGame();
 
 /* presence net */

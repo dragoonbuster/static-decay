@@ -45,9 +45,12 @@ on (code, comments, commits, docs, chat).
   PvP verification. `startWave` records a wave record (checkpoint code,
   seed, post-adaptation groups, env, input log) used by `beginReplay`.
 - Player actions are DOM-free cores (`placeTower`, `sellTower`,
-  `upgradeTower`, `cycleModeT`, `setPrioT`, `toggleEmconT`, `moveTower`)
-  shared by UI handlers and the replay applier; they self-record via
-  `recAction`. Tower moves cost ~10% of invested (min $5), build only.
+  `upgradeTower`, `cycleModeT`, `setModeT`, `setPrioT`, `toggleEmconT`,
+  `toggleOvrT`, `moveTower`) shared by UI handlers and the replay applier;
+  they self-record via `recAction`. Tower moves cost ~10% of invested
+  (min $5), build only. ORACLE `override` forces its prio onto linked
+  weapons; persisted by reusing the codec's gen-only struct bits — the
+  SD1 format is UNCHANGED, do not renumber fields.
 - Sensor fusion rule: weapons only engage enemies with `revealT > 0`
   (confirmed track from FOB sensors, radar, or optic).
 - Environment: `env` multipliers (sense/optic/laser) from day-night cycle

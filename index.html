@@ -100,7 +100,7 @@
   /* codex */
   .cdx{display:flex; gap:10px; align-items:flex-start; font-size:11.5px; line-height:1.5;
     color:var(--dim); margin-bottom:11px; border-left:2px solid var(--line2); padding-left:10px}
-  .cdx canvas{flex:0 0 36px; width:36px; height:36px; margin-top:2px}
+  .cdx canvas{flex:0 0 40px; width:40px; height:40px; margin-top:2px}
   .cdx b{font-family:var(--font-d); font-size:13px; letter-spacing:.08em; color:var(--phos)}
   .cdx .meta{color:var(--amber); font-size:10.5px; margin-left:8px}
   .hlp{font-size:12px; line-height:1.55; color:var(--ink); margin-bottom:12px}
@@ -189,7 +189,7 @@
   .card .ds{color:var(--dim); font-size:var(--fs-ds); line-height:1.35; margin-top:3px;
     min-height:2.75em} /* no clamp: full text must stay readable at every width/text-size combo */
   .chead{display:flex; gap:8px; align-items:center}
-  .card .cico{flex:0 0 32px; width:32px; height:32px}
+  .card .cico{flex:0 0 40px; width:40px; height:40px}
   .card .hk{position:absolute; top:5px; right:6px; font-size:9px; color:var(--dim);
     border:1px solid var(--line2); padding:0 4px}
   /* floating detail panel: selection must never reflow the bottom bar */
@@ -244,6 +244,7 @@
   <div class="grow"></div>
   <button class="btn" id="btnSave" title="Checkpoint code — click to copy the full code. Paste it on the start screen (or share it) to resume from this exact point: funds, integrity, wave, every emplacement, upgrade and targeting order.">⎘ …</button>
   <button class="btn" id="btnRepair" title="Repair FOB: +10 integrity for $50 [R], between waves only">🔧 +10 $50</button>
+  <button class="btn" id="btnAuto" title="Auto-launch the next wave when the build phase begins: OFF, a 10-second countdown, or immediately.">AUTO: OFF</button>
   <button class="btn primary" id="btnWave">LAUNCH WAVE 1 ▶</button>
   <button class="btn icon" id="btnPause" title="Pause [Space]">❚❚</button>
   <button class="btn icon" id="btnSpeed" title="Game speed">1×</button>
@@ -318,7 +319,10 @@
         <button class="btn" data-wx="FOG">FOG</button>
       </div>
       <div id="raidInfo" style="font-size:10.5px;color:var(--dim);line-height:1.5;min-height:30px;margin-bottom:10px">Autocannon wall behind a radar picket. Thin against armor and high altitude.</div>
-      <div class="ovrow"><button class="btn primary" id="btnRaidStart" style="font-size:16px;padding:10px 26px">OPEN RAID DESIGNER</button></div>
+      <div class="ovrow" style="align-items:center">
+        <button class="btn primary" id="btnRaidStart" style="font-size:16px;padding:10px 26px">OPEN RAID DESIGNER</button>
+        <button class="btn mini" id="btnRaidTut">RAID TUTORIAL</button>
+      </div>
       </div>
     </div>
   </div>
@@ -418,6 +422,7 @@
       <button class="btn" id="dUp">UPGRADE</button>
       <button class="btn" id="dMode">TGT</button>
       <button class="btn" id="dEmcon" title="Emission control: power this emitter down. Silent systems are invisible to WASP anti-radiation drones and draw no grid power — but sense/jam/shoot nothing. [E]">EMCON</button>
+      <button class="btn" id="dOvr" title="Priority override: force every gun, SAM and laser inside this optic's view onto its chosen priority, ignoring their own orders.">OVR</button>
       <button class="btn" id="dMove">MOVE</button>
       <button class="btn" id="dSell">SELL</button>
     </div>
@@ -463,7 +468,8 @@
       <div class="hlp"><b>KEYS</b>
         <span class="k">LMB</span> place / select · <span class="k">SHIFT+LMB</span> place multiple · <span class="k">1-9</span> select system · <span class="k">ESC</span> cancel<br>
         <span class="k">SPACE</span> launch / pause · <span class="k">U</span> upgrade · <span class="k">T</span> targeting · <span class="k">M</span> move · <span class="k">X</span> sell · <span class="k">E</span> EMCON<br>
-        <span class="k">R</span> repair FOB · <span class="k">F</span> fast-forward · <span class="k">G</span> grid lock · <span class="k">P</span> pause</div>
+        <span class="k">R</span> repair FOB · <span class="k">F</span> fast-forward · <span class="k">G</span> grid lock · <span class="k">P</span> pause<br>
+        <span class="k">DRAG</span> on open ground to box-select a group and give TGT / PRIORITY orders en masse</div>
       <div class="ovrow"><button class="btn primary" id="btnHelpBack">BACK</button></div>
     </div>
   </div>
@@ -556,7 +562,7 @@ const sri = (a, b) => Math.floor(sr(a, b + 1));
 
 /* ---------- settings (device-local, cosmetic/audio only — never sim) ---------- */
 const SETTINGS_KEY = 'ip_settings';
-const settings = { text: 100, cardw: 100, hud: 100, vol: 50, radio: 'full', shake: true, scan: true, snap: false };
+const settings = { text: 100, cardw: 100, hud: 100, vol: 50, radio: 'full', shake: true, scan: true, snap: false, auto: 'off' };
 let settingsOpen = false;
 function saveSettings() {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { }
@@ -653,7 +659,9 @@ function closeCodex() {
    or SKIP. */
 const TUT = [
   { t: 'WELCOME TO AEGIS', x: 'This hexagon is your FOB. Hostile drones enter from the west and fly straight at it — every leaker costs integrity, and at zero the base falls. Your job: build the grid that stops them.', mark: { x: 1128, y: 360 }, next: true },
-  { t: 'FUNDS AND POWER', x: 'Top bar: FUNDS pay for everything — systems, upgrades, missiles. POWER is the grid: the FOB supplies 8 and every system draws some. Watch both.', hl: '#cashV', next: true },
+  { t: 'THE COMMAND RAIL', x: 'Across the top: FOB integrity, FUNDS (they pay for everything), grid POWER, the wave counter, HOSTILES aloft, and X-RATE — your cost-exchange score. Right side: repair, auto-launch, LAUNCH, pause, speed and sound.', hl: '#top', next: true },
+  { t: 'THE FIELD', x: 'The map. Hostiles enter from the hatched WEST edge — flanking raids come north and south later. The dashed ring is the FOB\'s own sensor reach, and amber HERE markers are my placement suggestions.', mark: { x: 60, y: 360 }, next: true },
+  { t: 'RACK AND PANEL', x: 'The bottom rack holds your nine systems (hotkeys 1-9): click a card, then click the field. Selecting a placed system opens its control panel bottom-right. The intel strip above the rack previews every wave.', hl: '#shop', next: true },
   { t: 'FIRST GUN', x: 'Select VULCAN CIWS in the rack below (or press 1) and place it at the amber marker. Guns are cheap and their rounds are free.', hl: '.card[data-k="vulcan"]', mark: { x: 990, y: 310 }, done: () => towers.some(t => t.k === 'vulcan') },
   { t: 'A SECOND GUN', x: 'One gun is a gap, two are a line. Hold SHIFT while placing to build several. Add another Vulcan to the south.', mark: { x: 990, y: 420 }, done: () => towers.filter(t => t.k === 'vulcan').length >= 2 },
   { t: 'EYES FORWARD', x: 'Nothing shoots what nothing sees. The FOB senses ~260m on its own — the dashed ring. A SENTINEL radar extends the picture and boosts the range of systems inside its umbrella. Place one at the marker.', hl: '.card[data-k="radar"]', mark: { x: 950, y: 360 }, done: () => towers.some(t => t.k === 'radar') },
@@ -673,6 +681,16 @@ const TUT = [
   { t: 'YOUR WAVE', x: 'Wave 5 is yours: spend, position, launch, hold. The DATABASE and HOW TO PLAY on the menu cover everything else — jammers, lasers, EMCON, interceptors, the works.', next: true },
   { t: 'FINAL EXERCISE', x: 'Clear wave 5 to complete the tutorial. The run then continues as a normal EASY run — take it to 15. When you want an enemy that learns from you: STANDARD awaits.', done: () => state === 'build' && wave >= 5 },
 ];
+const TUTR = [
+  { t: 'THE TARGET', x: 'This is the GUN LINE grid — seven autocannons behind a radar picket. Hover any emplacement to see its reach. Your mission: put warheads on that FOB for less than the strike costs.', next: true },
+  { t: 'THE MANIFEST', x: 'The right panel is your strike manifest: budget at the top, one row per group. The defender has a wallet too — every missile they launch costs them money.', hl: '#detail', next: true },
+  { t: 'CHEAP MASS', x: 'Click HORNET to add a strike group. Cheap FPVs soak fire and force the guns to commit.', hl: '.card[data-k="hornet"]', done: () => raid && raid.groups.some(g => g.type === 'hornet') },
+  { t: 'ARMOR BREAKS GUN LINES', x: 'Add MULES — their armor blunts every autocannon hit. Guns alone cannot stop them in numbers.', hl: '.card[data-k="mule"]', done: () => raid && raid.groups.some(g => g.type === 'mule') },
+  { t: 'AXIS AND TIMING', x: 'On each manifest row: +/- adjusts count, W/N/S cycles the attack axis, +Ns delays launch. Slow movers launch first, fast movers last, everything arrives TOGETHER. Time-on-target wins raids — piecemeal attacks die piecemeal.', next: true },
+  { t: 'BLIND THEM', x: 'Add WASPS — anti-radiation drones that home on emitting radars, jammers and SAMs and knock them offline. Kill the picture, kill the grid.', hl: '.card[data-k="wasp"]', done: () => raid && raid.groups.some(g => g.type === 'wasp') },
+  { t: 'LAUNCH THE RAID', x: 'Set your axes and delays, then hit LAUNCH RAID in the manifest (or SPACE). Once the package is airborne you can only watch — the planning IS the game.', done: () => state === 'combat' },
+  { t: 'ASSESSMENT', x: 'When the last airframe resolves you get the offense report: VALUE INFLICTED against raid cost is your RAID X-RATE. RE-DESIGN keeps your manifest for iteration; REWATCH replays the identical raid.', done: () => state === 'rover' },
+];
 let tut = null;
 function setTutHl(sel) {
   document.querySelectorAll('.tuthl').forEach(e => e.classList.remove('tuthl'));
@@ -681,8 +699,8 @@ function setTutHl(sel) {
   if (e) e.classList.add('tuthl');
 }
 function tutShow() {
-  const s = TUT[tut.i];
-  el('tutStep').textContent = (tut.i + 1) + ' / ' + TUT.length;
+  const s = tut.s[tut.i];
+  el('tutStep').textContent = (tut.i + 1) + ' / ' + tut.s.length;
   el('tutTitleTxt').textContent = s.t;
   el('tutText').textContent = s.x;
   el('btnTutNext').style.display = s.next ? '' : 'none';
@@ -691,12 +709,12 @@ function tutShow() {
 }
 function tutAdvance() {
   tut.i++;
-  if (tut.i >= TUT.length) { endTutorial(true); return; }
+  if (tut.i >= tut.s.length) { endTutorial(true); return; }
   tutShow();
 }
 function tutUpdate() {
   if (!tut) return;
-  const s = TUT[tut.i];
+  const s = tut.s[tut.i];
   if (s.done && s.done()) tutAdvance();
 }
 function startTutorial() {
@@ -705,10 +723,19 @@ function startTutorial() {
   el('diffDesc').textContent = DIFFS.ez.desc;
   restartGame();
   el('ovMenu').classList.add('hide');
-  tut = { i: 0 };
+  tut = { i: 0, s: TUT };
   el('tutBox').classList.remove('hide');
   tutShow();
   el('tipbar').innerHTML = 'TUTORIAL // follow the amber box — SKIP any time';
+  sfx.horn();
+}
+function startRaidTutorial() {
+  raidSel.g = 'p0'; raidSel.night = false; raidSel.wx = 'CLEAR';
+  enterRaidDesign(PRESET_GRIDS[0]);
+  tut = { i: 0, s: TUTR };
+  el('tutBox').classList.remove('hide');
+  tutShow();
+  el('tipbar').innerHTML = 'RAID TUTORIAL // follow the amber box — SKIP any time';
   sfx.horn();
 }
 function endTutorial(completed) {
@@ -999,7 +1026,7 @@ function makeTower(k, x, y) {
     cd: 0, heat: 0, over: false, ramp: 0, tg: null, firing: false,
     mode: (k === 'sam' ? 'strong' : 'near'), sw: rand(0, TAU), aim: rand(0, TAU),
     stock: TT[k].cap || 0, rb: 0, dry: 0, fx: 0, buffMulOn: 1, sndT: 0,
-    offlineT: 0, rofMul: 1, prio: null, optic: false, opticMul: 1, emcon: false,
+    offlineT: 0, rofMul: 1, prio: null, prioForced: null, override: false, optic: false, opticMul: 1, emcon: false,
     struct: (k === 'gen' ? 3 : 0), powered: true,
     cs: CSNAMES[k] + '-' + (csCount[k] = (csCount[k] || 0) + 1) };
   applyStats(t);
@@ -1141,6 +1168,8 @@ resetAAR();
 let enemies = [], towers = [], projs = [], birds = [], parts = [], texts = [], rings = [], tracers = [];
 let spawnQ = [], nextGroups = null;
 let placing = null, sel = null, hoverT = null, movingT = null;
+let multiSel = null, dragSel = null;
+let autoAt = 0; // auto-launch deadline on the cosmetic clock; 0 = disarmed
 let mouse = { x: 0, y: 0, in: false, shift: false };
 let shake = 0, flash = 0, waveBanner = 0;
 const seen = new Set();
@@ -1285,6 +1314,7 @@ function primaryAxis() {
 }
 function startWave() {
   if (state !== 'build') return;
+  autoAt = 0;
   waveStartCode = encodeSave(); // checkpoint: build phase, exactly as launched
   wave++;
   const ramp = 1 + 0.07 * (Math.min(wave, LAST_WAVE) - 1);
@@ -1354,8 +1384,9 @@ function pickTarget(t, effR) {
   let pool = cands;
   if (t.optic) {
     // explicit type priority: hunt that type if any are in range
-    if (t.prio) {
-      const typed = cands.filter(e => e.type === t.prio);
+    const prio = t.prioForced || t.prio; // an overriding ORACLE outranks the weapon's own order
+    if (prio) {
+      const typed = cands.filter(e => e.type === prio);
       if (typed.length) pool = typed;
     }
     // optical ID: never waste fire on decoys while real threats are in range
@@ -1527,7 +1558,7 @@ function updTowers(dt) {
   for (const t of towers)
     t.powered = !fp || TT[t.k].draw === 0 || genCovered(t.x, t.y);
   // radar buffs (offline/silent radars contribute nothing)
-  for (const t of towers) { t.buffMulOn = 1; t.rofMul = 1; t.optic = false; t.opticMul = 1; }
+  for (const t of towers) { t.buffMulOn = 1; t.rofMul = 1; t.optic = false; t.opticMul = 1; t.prioForced = null; }
   for (const r of towers) if (r.kind === 'radar' && r.offlineT <= 0 && !r.emcon && r.powered)
     for (const t of towers) if (t !== r && dist(t, r) < r.range)
       t.buffMulOn = Math.max(t.buffMulOn, r.buffMul);
@@ -1538,6 +1569,7 @@ function updTowers(dt) {
       if (t.kind === 'gun' || t.kind === 'sam' || t.kind === 'laser') {
         t.optic = true;
         t.opticMul = Math.max(t.opticMul, 1 + o.dmgBuff);
+        if (o.override && o.prio) t.prioForced = o.prio; // group fire-control order
       }
     }
   // Static escort jammers slow fire rates
@@ -1573,7 +1605,7 @@ function updTowers(dt) {
     // validate / acquire target
     if (t.tg && (t.tg.dead || !canDetect(t, t.tg, effR))) t.tg = null;
     if (!t.tg || t.kind === 'gun'
-        || (t.optic && t.prio && t.tg.type !== t.prio)
+        || (t.optic && (t.prioForced || t.prio) && t.tg.type !== (t.prioForced || t.prio))
         || (t.optic && t.tg.decoy)) {
       const nt = pickTarget(t, effR);
       if (nt) t.tg = nt;
@@ -1752,6 +1784,8 @@ function updWaves(dt) {
     state = 'build';
     el('btnWave').disabled = false;
     prepareNext();
+    if (settings.auto !== 'off' && !tut && gameMode === 'skirmish' && !replaying)
+      autoAt = time + (settings.auto === 'instant' ? 0.8 : 10);
   }
 }
 
@@ -2290,7 +2324,7 @@ function render() {
     const ox = hi ? 16 : 7, oy = hi ? 26 : 12, sc = hi ? 0.7 : 1;
     ctx.beginPath(); ctx.ellipse(e.x + ox, e.y + oy, e.r * 1.1 * sc, e.r * 0.5 * sc, 0, 0, TAU); ctx.fill();
   }
-  for (const t of towers) drawTower(t, t === sel);
+  for (const t of towers) drawTower(t, t === sel || (multiSel !== null && multiSel.indexOf(t) >= 0));
   for (const e of enemies) {
     if (e.revealT > 0) drawEnemy(e);
     else drawBlip(e);
@@ -2334,9 +2368,16 @@ function render() {
     ctx.fillStyle = tx.color; ctx.fillText(tx.txt, tx.x, tx.y);
   }
   ctx.globalAlpha = 1;
+  // box-select rectangle
+  if (dragSel && dragSel.box) {
+    ctx.setLineDash([5, 4]); ctx.strokeStyle = 'rgba(125,255,171,0.6)'; ctx.lineWidth = 1;
+    ctx.strokeRect(Math.min(dragSel.x0, dragSel.x1), Math.min(dragSel.y0, dragSel.y1),
+      Math.abs(dragSel.x1 - dragSel.x0), Math.abs(dragSel.y1 - dragSel.y0));
+    ctx.setLineDash([]);
+  }
   // tutorial map marker
-  if (tut && TUT[tut.i] && TUT[tut.i].mark) {
-    const mk = TUT[tut.i].mark;
+  if (tut && tut.s[tut.i] && tut.s[tut.i].mark) {
+    const mk = tut.s[tut.i].mark;
     const pr = 24 + Math.sin(time * 5) * 5;
     ctx.strokeStyle = 'rgba(255,180,84,0.85)'; ctx.lineWidth = 2; ctx.setLineDash([6, 5]);
     ctx.beginPath(); ctx.arc(mk.x, mk.y, pr, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
@@ -2429,7 +2470,8 @@ function render() {
     const hf = settings.hud / 100, lh = Math.round(13 * hf), fs = Math.round(10 * hf);
     ctx.font = fs + 'px IBM Plex Mono'; ctx.textAlign = 'left';
     ctx.fillStyle = 'rgba(125,255,171,0.5)';
-    ctx.fillText(clockStr() + ' LOCAL' + (envEnabled() || gameMode === 'raid' ? ' · ' + (env.night ? 'NIGHT' : 'DAY') +
+    ctx.fillText(clockStr() + ' LOCAL · ' + (gameMode === 'raid' ? 'RAID' : DIFFS[diffKey].name) +
+      (envEnabled() || gameMode === 'raid' ? ' · ' + (env.night ? 'NIGHT' : 'DAY') +
       (env.wx !== 'CLEAR' ? ' · ' + env.wx : '') : ''), 10, 18 + fs);
     if (env.sense < 1 || env.optic < 1 || env.laser < 1) {
       const bits = [];
@@ -2655,7 +2697,8 @@ function encodeSave() {
     put(MODE_ORDER.indexOf(t.mode), 2);
     put(t.prio ? EKEYS.indexOf(t.prio) + 1 : 0, 4);
     put(t.emcon ? 1 : 0, 1);
-    put(t.k === 'gen' ? t.struct - 1 : 0, 2);
+    // the 2-bit struct field is gen-only; optics reuse it for the override flag
+    put(t.k === 'gen' ? t.struct - 1 : (t.k === 'optic' && t.override ? 1 : 0), 2);
     put(t.x / 4, 9);
     put(t.y / 4, 8);
   }
@@ -2694,7 +2737,8 @@ function applySave(s) {
   el('cashL').textContent = 'FUNDS';
   el('btnWave').style.display = ''; el('btnRepair').style.display = '';
   enemies = []; projs = []; birds = []; parts = []; texts = []; rings = []; tracers = []; spawnQ = [];
-  placing = null; sel = null; movingT = null; shake = 0; flash = 0; waveBanner = 0; paused = false; speed = 1;
+  placing = null; sel = null; movingT = null; multiSel = null; dragSel = null; autoAt = 0;
+  shake = 0; flash = 0; waveBanner = 0; paused = false; speed = 1;
   diffKey = DKEYS[s.diffIdx];
   const D = DIFFS[diffKey];
   diffHp = D.hp; diffBounty = D.b; diffSpd = D.spd; baseMax = D.base;
@@ -2712,6 +2756,7 @@ function applySave(s) {
     applyStats(t);
     t.mode = st.mode; t.prio = st.prio; t.emcon = !!st.emcon;
     if (t.k === 'gen') t.struct = st.struct;
+    if (t.k === 'optic') t.override = st.struct === 2; // shared bit field, see encodeSave
     towers.push(t);
   }
   seen.clear();
@@ -2767,7 +2812,8 @@ function restoreRun() {
   killPts = s.killPts; seadPts = s.seadPts;
   killValAxis = s.killValAxis; leakDmgAxis = s.leakDmgAxis; reconExfilN = s.reconExfilN;
   enemies = []; projs = []; birds = []; parts = []; texts = []; rings = []; tracers = []; spawnQ = [];
-  placing = null; sel = null; hoverT = null; movingT = null; shake = 0; flash = 0; waveBanner = 0;
+  placing = null; sel = null; hoverT = null; movingT = null; multiSel = null; dragSel = null; autoAt = 0;
+  shake = 0; flash = 0; waveBanner = 0;
   paused = false; speed = 1; simAcc = 0;
   el('btnSpeed').textContent = '1×'; el('btnPause').textContent = '❚❚';
   el('ovPause').classList.add('hide');
@@ -3005,13 +3051,15 @@ function statLine(t) {
     case 'jammer': return emconLine(t) + 'SLOW ' + Math.round(t.slow * 100) + '% + drift in field\nRANGE ' + effR + link + (t.level >= 3 ? '\nBurn-through: slows fiber drones 45%.' : '\nNo effect on fiber-optic (Viper).');
     case 'falcon': return 'INTERCEPTORS ' + t.stock + '/' + t.cap + ' · RAM ' + t.dmg + ' dmg\nENGAGE RANGE ' + effR + link + '\nAirframe rebuild ' + t.rebuild.toFixed(1) + 's, free.';
     case 'radar': return emconLine(t) + 'COVERAGE ' + effR + '\n+' + Math.round((t.buffMul - 1) * 100) + '% range to systems inside\nBurns through stealth · datalinks track.';
-    case 'optic': return 'COVERAGE ' + Math.round(t.range * env.optic) + (env.optic < 1 ? ' (WX-DEGRADED)' : '') + ' · fire-control +' + Math.round(t.dmgBuff * 100) + '% DMG\nLinked guns/SAMs/lasers can hunt a\nchosen drone TYPE & ignore decoys.';
+    case 'optic': return 'COVERAGE ' + Math.round(t.range * env.optic) + (env.optic < 1 ? ' (WX-DEGRADED)' : '') + ' · fire-control +' + Math.round(t.dmgBuff * 100) + '% DMG\nLinked guns/SAMs/lasers can hunt a\nchosen drone TYPE & ignore decoys.'
+      + (t.prio ? '\nPRIORITY: ' + ETYPES[t.prio].name + (t.override ? ' — OVERRIDING all linked systems' : ' (weapons may keep their own)') : '\nSet a PRIORITY + OVR to command\nevery weapon in view at once.');
     case 'gen': return 'GRID OUTPUT +' + TT.gen.pwr + ' POWER' +
       (DIFFS[diffKey].fieldPwr ? ' · COVERAGE ' + TT.gen.covR + '\nSTRUCTURE ' + t.struct + '/3 — Wasps strike field power.' : '\nFOB baseline supply: 8') +
       '\nGrid: ' + powerUsed() + ' / ' + powerCap() + ' in use.';
   }
   return '';
 }
+const isWeapon = t => t.kind === 'gun' || t.kind === 'sam' || t.kind === 'laser';
 function refreshDetail() {
   if (gameMode === 'raid') {
     if (state === 'rdesign' && raid) updateRaidPanel();
@@ -3021,8 +3069,30 @@ function refreshDetail() {
   el('dRow').style.display = '';
   el('dStats').style.overflowY = '';
   const d = el('detail');
+  if (multiSel) {
+    multiSel = multiSel.filter(t2 => towers.includes(t2));
+    if (multiSel.length < 2) { sel = multiSel[0] || sel; multiSel = null; }
+  }
+  if (multiSel) { // group orders: TGT + PRIORITY applied en masse
+    d.classList.remove('hide');
+    const counts = {};
+    for (const t2 of multiSel) counts[TT[t2.k].name] = (counts[TT[t2.k].name] || 0) + 1;
+    el('dName').innerHTML = 'GROUP <span>' + multiSel.length + ' SYSTEMS</span>';
+    el('dStats').textContent = Object.keys(counts).map(n => counts[n] + 'x ' + n).join('\n') +
+      '\nTGT and PRIORITY apply to every\nweapon in the group.';
+    ['dUp', 'dEmcon', 'dMove', 'dOvr', 'dSell'].forEach(id => { el(id).style.display = 'none'; });
+    const w0 = multiSel.find(isWeapon);
+    el('dMode').style.display = w0 ? '' : 'none';
+    el('dMode').textContent = 'TGT: ' + (w0 ? MODES[w0.mode] : '—');
+    const pr = el('dPrio');
+    const linkable = multiSel.some(t2 => (isWeapon(t2) && t2.optic) || t2.k === 'optic');
+    pr.style.display = linkable ? 'block' : 'none';
+    pr.value = '';
+    return;
+  }
   if (!sel) { d.classList.add('hide'); return; }
   d.classList.remove('hide');
+  ['dSell', 'dMove'].forEach(id => { el(id).style.display = ''; });
   const t = sel;
   const draw = TT[t.k].draw;
   el('dName').innerHTML = TT[t.k].name + ' <span>MK-' + t.level + (draw ? ' · ⚡' + draw : '') + '</span>';
@@ -3043,8 +3113,12 @@ function refreshDetail() {
   mv.textContent = 'MOVE ' + fmt$(mc);
   mv.disabled = state !== 'build' || cash < mc;
   mv.title = 'Redeploy this emplacement for ' + fmt$(mc) + ' (~10% of its value) [M] — between waves only';
+  const ov = el('dOvr');
+  ov.style.display = t.k === 'optic' ? '' : 'none';
+  ov.textContent = t.override ? 'OVR ON' : 'OVR OFF';
+  ov.style.color = t.override ? 'var(--amber)' : '';
   const pr = el('dPrio');
-  if (showMode && t.optic) {
+  if ((showMode && t.optic) || t.k === 'optic') {
     pr.style.display = 'block';
     pr.value = t.prio || '';
   } else pr.style.display = 'none';
@@ -3056,6 +3130,11 @@ function buildPrioOptions() {
   for (const k in ETYPES) html += '<option value="' + k + '">◆ PRIORITY: ' + ETYPES[k].name + '</option>';
   pr.innerHTML = html;
   pr.addEventListener('change', () => {
+    if (multiSel) {
+      multiSel.filter(t => (isWeapon(t) && t.optic) || t.k === 'optic').forEach(t => setPrioT(t, pr.value));
+      refreshDetail(); sfx.click();
+      return;
+    }
     if (!sel) return;
     setPrioT(sel, pr.value);
     refreshDetail(); sfx.click();
@@ -3111,6 +3190,15 @@ function setPrioT(t, v) {
   t.prio = v || null;
   t.tg = null;
 }
+function setModeT(t, m) {
+  recAction('modeSet', { i: towers.indexOf(t), v: m });
+  t.mode = m;
+  t.tg = null;
+}
+function toggleOvrT(t) {
+  recAction('ovr', { i: towers.indexOf(t) });
+  t.override = !t.override;
+}
 function toggleEmconT(t) {
   if (t.emcon && powerUsed() + TT[t.k].draw > powerCap()) return false;
   recAction('em', { i: towers.indexOf(t) });
@@ -3136,6 +3224,8 @@ function applyAction(a) {
   else if (a.a === 'prio') setPrioT(t, a.v);
   else if (a.a === 'em') toggleEmconT(t);
   else if (a.a === 'move') moveTower(t, a.x, a.y);
+  else if (a.a === 'modeSet') setModeT(t, a.v);
+  else if (a.a === 'ovr') toggleOvrT(t);
 }
 
 function doUpgrade() {
@@ -3167,6 +3257,14 @@ function toggleEmcon() {
   refreshDetail(); sfx.click();
 }
 function cycleMode() {
+  if (multiSel) {
+    const ws = multiSel.filter(isWeapon);
+    if (!ws.length) return;
+    const m = MODE_ORDER[(MODE_ORDER.indexOf(ws[0].mode) + 1) % MODE_ORDER.length];
+    ws.forEach(t => setModeT(t, m));
+    refreshDetail(); sfx.click();
+    return;
+  }
   if (!sel) return;
   cycleModeT(sel);
   refreshDetail(); sfx.click();
@@ -3287,6 +3385,10 @@ function refreshTop() {
     }
     el('btnSave').style.display = 'inline-block';
   } else el('btnSave').style.display = 'none';
+  if (autoAt && state === 'build' && !paused && !replaying) {
+    if (time >= autoAt) { autoAt = 0; startWave(); }
+    else el('btnWave').textContent = 'LAUNCH WAVE ' + (wave + 1) + ' ▶ ' + Math.ceil(autoAt - time) + 's';
+  }
   tutUpdate();
 }
 
@@ -3300,8 +3402,25 @@ cv.addEventListener('pointermove', ev => {
   mouse.x = p.x; mouse.y = p.y; mouse.in = true;
   hoverT = null;
   for (const t of towers) if (Math.hypot(t.x - p.x, t.y - p.y) < 18) { hoverT = t; break; }
+  if (dragSel) {
+    dragSel.x1 = p.x; dragSel.y1 = p.y;
+    if (Math.hypot(dragSel.x1 - dragSel.x0, dragSel.y1 - dragSel.y0) > 10) dragSel.box = true;
+  }
 });
-cv.addEventListener('pointerleave', () => { mouse.in = false; hoverT = null; });
+cv.addEventListener('pointerleave', () => { mouse.in = false; hoverT = null; dragSel = null; });
+cv.addEventListener('pointerup', () => {
+  if (!dragSel) return;
+  if (dragSel.box) {
+    const x0 = Math.min(dragSel.x0, dragSel.x1), x1 = Math.max(dragSel.x0, dragSel.x1);
+    const y0 = Math.min(dragSel.y0, dragSel.y1), y1 = Math.max(dragSel.y0, dragSel.y1);
+    const g = towers.filter(t => t.x >= x0 && t.x <= x1 && t.y >= y0 && t.y <= y1);
+    if (g.length > 1) { multiSel = g; sel = null; }
+    else if (g.length === 1) { sel = g[0]; multiSel = null; }
+    refreshDetail();
+    if (multiSel) sfx.click();
+  }
+  dragSel = null;
+});
 cv.addEventListener('pointerdown', ev => {
   initAudio(); if (AC && AC.state === 'suspended') AC.resume();
   if (replaying || state === 'menu' || state === 'over' || state === 'won' || state === 'rover') return;
@@ -3335,11 +3454,14 @@ cv.addEventListener('pointerdown', ev => {
   }
   let hit = null;
   for (const t of towers) if (Math.hypot(t.x - p.x, t.y - p.y) < 18) { hit = t; break; }
-  sel = hit; refreshDetail();
+  if (!hit && gameMode === 'skirmish') dragSel = { x0: p.x, y0: p.y, x1: p.x, y1: p.y, box: false }; // maybe a box-select
+  sel = hit;
+  if (hit) multiSel = null;
+  refreshDetail();
 });
 cv.addEventListener('contextmenu', ev => {
   ev.preventDefault();
-  placing = null; sel = null; movingT = null; refreshDetail();
+  placing = null; sel = null; movingT = null; multiSel = null; dragSel = null; refreshDetail();
   document.querySelectorAll('.card').forEach(c => c.classList.remove('sel'));
 });
 
@@ -3372,7 +3494,7 @@ document.addEventListener('keydown', ev => {
   if (k >= '1' && k <= '9') { if (gameMode === 'raid') addRaidGroup(RKEYS[+k - 1]); else selectShop(TKEYS[+k - 1]); }
   else if (k === '0' && gameMode === 'raid') addRaidGroup(RKEYS[9]);
   else if (k === 'r') doRepair();
-  else if (k === 'escape') { placing = null; sel = null; movingT = null; refreshDetail();
+  else if (k === 'escape') { placing = null; sel = null; movingT = null; multiSel = null; dragSel = null; refreshDetail();
     document.querySelectorAll('.card').forEach(c => c.classList.remove('sel')); }
   else if (k === 'm') startMove();
   else if (k === 'g') { settings.snap = !settings.snap; saveSettings(); sfx.click(); }
@@ -3406,6 +3528,16 @@ function toggleSpeed() {
   el('btnSpeed').textContent = speed + '×';
 }
 el('btnWave').addEventListener('click', () => { initAudio(); startWave(); });
+const AUTO_MODES = ['off', '10', 'instant'];
+function autoLabel() { return 'AUTO: ' + (settings.auto === 'off' ? 'OFF' : settings.auto === '10' ? '10S' : 'NOW'); }
+el('btnAuto').addEventListener('click', () => {
+  settings.auto = AUTO_MODES[(AUTO_MODES.indexOf(settings.auto) + 1) % AUTO_MODES.length];
+  saveSettings();
+  el('btnAuto').textContent = autoLabel();
+  el('btnAuto').classList.toggle('on', settings.auto !== 'off');
+  if (settings.auto === 'off') { autoAt = 0; if (state === 'build' && nextGroups) renderPreview(); }
+  sfx.click();
+});
 el('btnPause').addEventListener('click', togglePause);
 el('btnResume').addEventListener('click', togglePause);
 el('btnPauseSettings').addEventListener('click', () => { openSettings(); sfx.click(); });
@@ -3424,7 +3556,8 @@ document.querySelectorAll('#cdxTabs .btn').forEach(b => {
   });
 });
 el('btnTutorial').addEventListener('click', () => { initAudio(); if (AC && AC.state === 'suspended') AC.resume(); startTutorial(); });
-el('btnTutNext').addEventListener('click', () => { if (tut && TUT[tut.i].next) { tutAdvance(); sfx.click(); } });
+el('btnTutNext').addEventListener('click', () => { if (tut && tut.s[tut.i].next) { tutAdvance(); sfx.click(); } });
+el('btnRaidTut').addEventListener('click', () => { initAudio(); if (AC && AC.state === 'suspended') AC.resume(); startRaidTutorial(); });
 el('btnTutSkip').addEventListener('click', () => { endTutorial(false); sfx.click(); });
 el('btnMenuFeedback').addEventListener('click', () => { openFeedback('ovMenu'); sfx.click(); });
 el('btnPauseFeedback').addEventListener('click', () => { openFeedback('ovPause'); sfx.click(); });
@@ -3610,6 +3743,11 @@ el('dMode').addEventListener('click', cycleMode);
 el('dSell').addEventListener('click', doSell);
 el('dEmcon').addEventListener('click', toggleEmcon);
 el('dMove').addEventListener('click', startMove);
+el('dOvr').addEventListener('click', () => {
+  if (!sel || sel.k !== 'optic') return;
+  toggleOvrT(sel);
+  refreshDetail(); sfx.click();
+});
 
 function restartGame() {
   endTutorial(false); // startTutorial re-arms after this returns
@@ -3631,7 +3769,8 @@ function restartGame() {
   spent = 0; destroyed = 0; repairSpent = 0; resetSys();
   axisKills = { left: 0, top: 0, bottom: 0 }; axisLeaks = { left: 0, top: 0, bottom: 0 };
   intelBoost = false; reconEscaped = false; waveStartCode = ''; waveRec = null; simAcc = 0;
-  placing = null; sel = null; movingT = null; shake = 0; flash = 0; waveBanner = 0;
+  placing = null; sel = null; movingT = null; multiSel = null; dragSel = null; autoAt = 0;
+  shake = 0; flash = 0; waveBanner = 0;
   applyDiff();
   _cash = -1; _hp = -1; _wave = ''; _host = ''; _pwr = ''; _xr = ''; saveCode = ''; saveTick = 0;
   el('btnSpeed').textContent = '1×'; el('btnPause').textContent = '❚❚';
@@ -3662,6 +3801,7 @@ function buildDefense(spec) {
     t.prio = st.prio || null;
     t.emcon = !!st.emcon;
     if (t.k === 'gen' && st.struct) t.struct = st.struct;
+    if (t.k === 'optic') t.override = st.struct === 2;
     towers.push(t);
   }
   baseHP = baseMax;
@@ -3679,7 +3819,7 @@ function enterRaidDesign(spec) {
   endTutorial(false);
   gameMode = 'raid';
   enemies = []; projs = []; birds = []; parts = []; texts = []; rings = []; tracers = []; spawnQ = [];
-  placing = null; sel = null; hoverT = null; movingT = null; paused = false; speed = 1;
+  placing = null; sel = null; hoverT = null; movingT = null; multiSel = null; dragSel = null; autoAt = 0; paused = false; speed = 1;
   radio = []; radioKillT = -9; radioDiveT = -9; waveTypesLogged.clear(); clockJumps = 0;
   resetAAR(); waveRec = null; runSnap = null; replaying = false;
   shake = 0; flash = 0; waveBanner = 0;
@@ -3873,6 +4013,7 @@ function frame(now) {
   let dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   time += dt;
+  if (paused && autoAt) autoAt += dt; // countdown freezes while paused
   if (!paused && (state === 'combat' || state === 'build' || state === 'rdesign')) {
     elapsed += dt;
     simAcc = Math.min(simAcc + dt * speed, 0.25);
@@ -3893,6 +4034,8 @@ function frame(now) {
 
 /* ================= boot ================= */
 loadSettings();
+el('btnAuto').textContent = autoLabel();
+el('btnAuto').classList.toggle('on', settings.auto !== 'off');
 buildCodex();
 setInterval(presenceBeat, 60000);
 setInterval(() => { if (state === 'menu') refreshOperators(); }, 45000);

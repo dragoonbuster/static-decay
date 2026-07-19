@@ -70,7 +70,7 @@ if (state === 'build') {
 raidSel.g = 'p1';
 enterRaidDesign(raidTargetSpec());
 T(state === 'rdesign' && gameMode === 'raid', 'raid designer opens');
-T(raid.budget > 0 && raid.op.cap === 12 && raid.op.strike === 1 && towers.length === PRESET_GRIDS[1].towers.length, 'operation opens on firebase (budget $' + raid.budget + ')');
+T(raid.budget > 0 && raid.op.cap === 16 && raid.op.strike === 1 && towers.length === PRESET_GRIDS[1].towers.length, 'operation opens on firebase (budget $' + raid.budget + ')');
 raid.op.cap = 30; // determinism test flies a big mixed package
 raid.groups.push(
   { type: 'decoy', count: 8, edge: 'left', delay: 0, interval: 0.35 },
@@ -221,14 +221,14 @@ restartGame();
 /* operation economy */
 raidSel.g = 'p0';
 enterRaidDesign(raidTargetSpec());
-T(raid.op.strike === 1 && raid.op.cap === 12 && !raid.op.unlocked.viper && raid.op.unlocked.hornet === 1, 'operation starts thin: 12-cap, locked roster');
+T(raid.op.strike === 1 && raid.op.cap === 16 && !raid.op.unlocked.viper && raid.op.unlocked.hornet === 1, 'operation starts lean: 16-cap, locked roster');
 {
   const b0 = raid.budget;
   tryUnlock('viper');
-  T(raid.op.unlocked.viper === 1 && raid.budget === b0 - 60, 'unlock spends budget');
+  T(raid.op.unlocked.viper === 1 && raid.budget === b0 - 50, 'unlock spends budget');
   const c1 = railCost(), b1 = raid.budget;
   opBuy('rails');
-  T(raid.op.cap === 18 && raid.budget === b1 - c1, 'launch rails raise the cap');
+  T(raid.op.cap === 24 && raid.budget === b1 - c1, 'launch rails raise the cap');
   raid.op.cap = 12; // back to baseline for the cap test
   addRaidGroup('hornet'); addRaidGroup('hornet');
   T(raidTotal() === 12 && raid.groups.length === 2, 'two hornet groups fill the cap');

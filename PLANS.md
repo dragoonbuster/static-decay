@@ -53,19 +53,22 @@ Living document. Update as plans evolve (project rule: keep track of plans).
   - 5 strikes per operation (buy up to 2 more at $150 each). Breach the
     FOB in any strike = victory; otherwise graded on operation X-RATE
     (total inflicted / total spent, upgrades and unlocks included).
-  - Sortie cap: 12 airframes per strike; +6 per LAUNCH RAILS purchase
-    (cost 100 x 1.6^n rounded to 10). This is the mass limiter.
-  - Attacker wallet: starts 200 + 0.35 x grid value (round 10), carries
-    across strikes; income after each strike = $120 + 60% of value
+  - Sortie cap: 16 airframes per strike; +8 per LAUNCH RAILS purchase
+    (cost 80 x 1.5^n rounded to 10). This is the mass limiter.
+    (v1 was 12/+6 at 100x1.6^n - playtest said too tight.)
+  - Attacker wallet: starts 250 + 0.5 x grid value (round 10), carries
+    across strikes; income after each strike = $150 + 75% of value
     inflicted that strike. Drones are paid for at launch - losses real.
+    (v1: 200 + 0.35x start, $120 + 60% income - too thin.)
   - Drone unlocks (persist per operation): start hornet/geran/decoy;
-    viper 60, wasp 80, mule 90, ghost 100, specter 110, haze 120,
-    hive 150, kraken 400. Locked cards show the price; click to buy.
-  - Defender: wallet persists (bounties stay banked), +$100 stipend per
-    interphase; spends up to 60% of spendable on repairs at $5/hp, then
-    up to 3 reinforcement actions (40% upgrade an existing system, else
+    viper 50, wasp 70, mule 80, ghost 90, specter 100, haze 110,
+    hive 130, kraken 350. Locked cards show the price; click to buy.
+  - Defender: wallet persists (bounties stay banked), +$60 stipend per
+    interphase; spends up to 50% of spendable on repairs at $5/hp, then
+    up to 2 reinforcement actions (40% upgrade an existing system, else
     place a new one via weighted table + power checks), always keeping a
     $150 ammo reserve. FOB integrity persists across strikes.
+    (v1: $100 stipend / 60% repairs / 3 actions - compounded too fast.)
   - Value inflicted per strike = integrity damage x $5 + destroyed
     generators + $300 breach bonus. Same letter grades as defense.
   - Procurement costs = the genEndless table + kraken 250; sparrow still

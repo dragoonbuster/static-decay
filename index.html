@@ -763,8 +763,8 @@ const TUT = [
 const TUTR = [
   { t: 'THE OPERATION', x: 'ATTACK is a five-strike operation against this GUN LINE — seven autocannons behind a radar picket. Between strikes the grid repairs and reinforces, funded by the bounties it earns shooting you down. Breach the FOB in any strike to win.', next: true },
   { t: 'THE MANIFEST', x: 'The panel is your strike manifest: budget, airframe cap, one row per group. Your budget carries across strikes and grows with the damage you inflict — wasted drones are wasted money.', hl: '#detail', next: true },
-  { t: 'CHEAP MASS', x: 'Click HORNET to add a strike group. You start with three unlocked designs; the rest cost budget. Mind the AIRFRAME CAP — twelve launch rails to start.', hl: '.card[data-k="hornet"]', done: () => raid && raid.groups.some(g => g.type === 'hornet') },
-  { t: 'BUY THE MULE', x: 'Locked cards show an UNLOCK price. Click MULE to buy the design ($90) — unlocks last the whole operation.', hl: '.card[data-k="mule"]', done: () => raid && !!raid.op.unlocked.mule },
+  { t: 'CHEAP MASS', x: 'Click HORNET to add a strike group. You start with three unlocked designs; the rest cost budget. Mind the AIRFRAME CAP — sixteen launch rails to start.', hl: '.card[data-k="hornet"]', done: () => raid && raid.groups.some(g => g.type === 'hornet') },
+  { t: 'BUY THE MULE', x: 'Locked cards show an UNLOCK price. Click MULE to buy the design ($80) — unlocks last the whole operation.', hl: '.card[data-k="mule"]', done: () => raid && !!raid.op.unlocked.mule },
   { t: 'ARMOR BREAKS GUN LINES', x: 'Now add MULES — their armor blunts every autocannon hit. Guns alone cannot stop them in numbers.', done: () => raid && raid.groups.some(g => g.type === 'mule') },
   { t: 'AXIS AND TIMING', x: 'Row buttons: +/- adjusts count, W/N/S cycles the attack axis, +Ns delays launch. Slow movers launch first, fast movers last, everything arrives TOGETHER. Time-on-target wins strikes — piecemeal attacks die piecemeal.', next: true },
   { t: 'LAUNCH STRIKE ONE', x: 'Hit LAUNCH RAID in the manifest (or SPACE). Once the package is airborne you can only watch — the planning IS the game.', done: () => state === 'combat' },
@@ -3945,10 +3945,10 @@ function restartGame() {
    in any strike to win the operation. */
 let gameMode = 'skirmish'; // 'skirmish' | 'raid'
 let raid = null;
-const RAID_UNLOCK = { viper: 60, wasp: 80, mule: 90, ghost: 100, specter: 110, haze: 120, hive: 150, kraken: 400 };
+const RAID_UNLOCK = { viper: 50, wasp: 70, mule: 80, ghost: 90, specter: 100, haze: 110, hive: 130, kraken: 350 };
 const raidCost = () => raid.groups.reduce((a, g) => a + PCOST[g.type] * g.count, 0);
 const raidTotal = () => raid.groups.reduce((a, g) => a + g.count, 0);
-const railCost = () => Math.round(100 * Math.pow(1.6, raid.op.rails) / 10) * 10;
+const railCost = () => Math.round(80 * Math.pow(1.5, raid.op.rails) / 10) * 10;
 function towersToSpec() {
   return towers.map(t => ({ k: t.k, x: t.x, y: t.y, level: t.level, mode: t.mode,
     prio: t.prio, emcon: t.emcon, override: t.override, struct: t.struct }));
@@ -4051,11 +4051,11 @@ function enterRaidDesign(spec) {
   maniPos = null; // fresh target: manifest re-centers
   raid = {
     spec, value, defSpec: towersToSpec(),
-    budget: Math.round((200 + 0.35 * value) / 10) * 10, // thin start — income comes from damage
+    budget: Math.round((250 + 0.5 * value) / 10) * 10, // lean start — income comes from damage
     groups: [], night: raidSel.night, wx: raidSel.wx,
     genValue: 0, cost: 0, total: 0, seed: 0,
     strikeHP: baseMax, strikeCash: 0,
-    op: { strike: 1, strikes: 5, cap: 12, rails: 0, sorties: 0, over: false,
+    op: { strike: 1, strikes: 5, cap: 16, rails: 0, sorties: 0, over: false,
       totalInflicted: 0, totalSpent: 0,
       unlocked: { hornet: 1, geran: 1, decoy: 1 } },
   };
@@ -4089,10 +4089,10 @@ function strikeIntel() {
     ' · budget <b>$' + raid.budget + '</b> · cap ' + raid.op.cap + ' airframes';
 }
 function reinforceDefense() { // interphase: the grid banks its bounties and digs in
-  cash += 100; // resupply stipend
+  cash += 60; // resupply stipend
   const reserve = 150; // held back so the missiles keep flying next strike
   const avail = () => Math.max(0, cash - reserve);
-  const heal = Math.min(baseMax - Math.max(0, Math.round(baseHP)), Math.floor(avail() * 0.6 / 5));
+  const heal = Math.min(baseMax - Math.max(0, Math.round(baseHP)), Math.floor(avail() * 0.5 / 5));
   if (heal > 0) { baseHP = Math.max(0, Math.round(baseHP)) + heal; cash -= heal * 5; }
   const weights = { vulcan: 3, sam: 2, laser: 1, pulse: 1, jammer: 1.5, falcon: 0.5, radar: 1, optic: 1 };
   const BANDS = { radar: [180, 280], optic: [120, 220], jammer: [130, 230], pulse: [110, 200],
@@ -4107,7 +4107,7 @@ function reinforceDefense() { // interphase: the grid banks its bounties and dig
     return null;
   };
   let acts = 0, guard = 0;
-  while (avail() > 55 && acts < 3 && guard++ < 30) {
+  while (avail() > 55 && acts < 2 && guard++ < 30) {
     if (Math.random() < 0.4) { // sometimes deepen instead of widen
       const ups = towers.filter(t => t.k !== 'gen' && t.level < 3 && upCost(t) <= avail());
       if (ups.length) {
@@ -4303,7 +4303,7 @@ function buildOpPanel() {
   if (!op.over) {
     h += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
     h += '<button class="btn rbtn" data-u="rails"' + (raid.budget < railCost() ? ' disabled' : '') +
-      ' title="More launch rails: +6 airframes per strike">+6 CAP — $' + railCost() + '</button>';
+      ' title="More launch rails: +8 airframes per strike">+8 CAP — $' + railCost() + '</button>';
     if (op.sorties < 2) h += '<button class="btn rbtn" data-u="sortie"' + (raid.budget < 150 ? ' disabled' : '') +
       ' title="Extend the operation by one strike (the defender gets another interphase too)">+1 STRIKE — $150</button>';
     for (const k of RKEYS) if (!op.unlocked[k])
@@ -4324,7 +4324,7 @@ function opBuy(u) {
   if (u === 'rails') {
     const c = railCost();
     if (raid.budget < c) { sfx.deny(); return; }
-    raid.budget -= c; op.totalSpent += c; op.rails++; op.cap += 6;
+    raid.budget -= c; op.totalSpent += c; op.rails++; op.cap += 8;
   } else if (u === 'sortie') {
     if (op.sorties >= 2 || raid.budget < 150) { sfx.deny(); return; }
     raid.budget -= 150; op.totalSpent += 150; op.sorties++; op.strikes++;
@@ -4343,7 +4343,7 @@ function raidOver(breached) {
   const rate = inflicted / Math.max(1, raid.cost);
   op.totalInflicted += inflicted;
   if (breached || op.strike >= op.strikes) op.over = true;
-  const income = op.over ? 0 : 120 + Math.round(inflicted * 0.6);
+  const income = op.over ? 0 : 150 + Math.round(inflicted * 0.75);
   raid.budget += income;
   el('doneTitle').innerHTML = breached ? '<span class="bad">FOB DESTROYED — OPERATION VICTORY</span>'
     : op.over ? 'OPERATION COMPLETE' : 'STRIKE ' + op.strike + '/' + op.strikes + ' CONCLUDED';
@@ -4356,7 +4356,7 @@ function raidOver(breached) {
     ' · FOB NOW <span>' + Math.max(0, Math.round(baseHP)) + '/' + baseMax + '</span><br>' +
     'DEFENDER DRAIN&nbsp;: <span>$' + Math.round(SYS_STATS.sam.spent) + '</span> in missiles expended against you<br>' +
     'STRIKE X-RATE&nbsp;&nbsp;: <span>' + rate.toFixed(2) + ' : 1</span> — GRADE <span style="font-size:15px">' + raidGrade(rate) + '</span>' +
-    (income ? '<br>INCOME&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: <span>+$' + income + '</span> ($120 stipend + 60% of damage) — the defender is reinforcing' : '');
+    (income ? '<br>INCOME&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: <span>+$' + income + '</span> ($150 stipend + 75% of damage) — the defender is reinforcing' : '');
   renderAAR();
   buildOpPanel();
   el('lbWrap').style.display = 'none'; // no leaderboard for raids yet (PLANS.md)

@@ -560,6 +560,7 @@
         <button class="btn" id="btnReplay">WATCH LAST WAVE</button>
         <button class="btn" id="btnRestart">↺ RESTART</button>
         <button class="btn" id="btnToMenu">⎗ LOAD CHECKPOINT</button>
+        <button class="btn" id="btnGif" style="display:none" title="Re-runs the identical raid and downloads it as an animated GIF (480x270, 8fps, 60s cap)">SAVE CLIP (GIF)</button>
         <button class="btn" id="btnDoneFeedback">FEEDBACK</button>
       </div>
     </div>
@@ -987,7 +988,12 @@ function initAudio() {
   if (AC) return;
   try {
     AC = new (window.AudioContext || window.webkitAudioContext)();
-    master = AC.createGain(); master.gain.value = 0.5 * settings.vol / 100; master.connect(AC.destination);
+    master = AC.createGain(); master.gain.value = 0.5 * settings.vol / 100;
+    // compressor tames whatever stacking survives the voice limiter
+    const comp = AC.createDynamicsCompressor();
+    comp.threshold.value = -18; comp.knee.value = 12; comp.ratio.value = 8;
+    comp.attack.value = 0.004; comp.release.value = 0.18;
+    master.connect(comp); comp.connect(AC.destination);
   } catch (e) { AC = null; }
 }
 function tone(f0, f1, dur, type, vol, at) {
@@ -1011,18 +1017,30 @@ function noiseHit(dur, vol, cutoff) {
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   s.connect(f); f.connect(g); g.connect(master); s.start(t);
 }
+/* Polyphony limiter: N copies of the same effect inside ~90ms multiply into
+   ear fatigue, so each effect key gets a concurrent-trigger cap. */
+const voiceLog = {};
+function voiceOK(key, cap) {
+  if (!AC || !soundOn) return false;
+  const nowT = AC.currentTime;
+  const arr = voiceLog[key] = (voiceLog[key] || []).filter(t2 => nowT - t2 < 0.09);
+  if (arr.length >= cap) return false;
+  arr.push(nowT);
+  return true;
+}
 const sfx = {
-  shot:   () => tone(1500, 700, 0.045, 'square', 0.025),
-  launch: () => { noiseHit(0.45, 0.10, 900); tone(300, 90, 0.4, 'sawtooth', 0.05); },
+  shot:   () => { if (voiceOK('shot', 3)) tone(1500, 700, 0.045, 'square', 0.025); },
+  launch: () => { if (!voiceOK('launch', 2)) return; noiseHit(0.45, 0.10, 900); tone(300, 90, 0.4, 'sawtooth', 0.05); },
   boom:   s => { // stepped square-wave drop — chiptune explosion to match the rest of the kit
+    if (!voiceOK('boom', 3)) return;
     const n = Math.round(4 + s * 2);
     for (let i = 0; i < n; i++)
       tone(520 * Math.pow(0.74, i) * (0.9 + s * 0.15), 55, 0.055, 'square', Math.max(0.012, 0.05 - i * 0.006), i * 0.038);
     noiseHit(0.07 + s * 0.03, 0.035, 900);
   },
-  zap:    () => { tone(2400, 200, 0.22, 'sawtooth', 0.07); noiseHit(0.15, 0.06, 3000); },
-  laser:  () => tone(920, 860, 0.07, 'sine', 0.03),
-  baseHit:() => { noiseHit(0.5, 0.22, 350); tone(90, 35, 0.5, 'triangle', 0.12); },
+  zap:    () => { if (!voiceOK('zap', 2)) return; tone(2400, 200, 0.22, 'sawtooth', 0.07); noiseHit(0.15, 0.06, 3000); },
+  laser:  () => { if (voiceOK('laser', 2)) tone(920, 860, 0.07, 'sine', 0.03); },
+  baseHit:() => { if (!voiceOK('baseHit', 2)) return; noiseHit(0.5, 0.22, 350); tone(90, 35, 0.5, 'triangle', 0.12); },
   horn:   () => { tone(220, 220, 0.28, 'sawtooth', 0.06); setTimeout(() => tone(165, 165, 0.4, 'sawtooth', 0.06), 260); },
   cash:   () => tone(880, 1320, 0.09, 'square', 0.03),
   click:  () => tone(600, 500, 0.04, 'square', 0.03),
@@ -1928,6 +1946,7 @@ function gameOver(win) {
   if (replaying) { finishReplay(); return; }
   endTutorial(false);
   el('lbWrap').style.display = '';
+  el('btnGif').style.display = 'none';
   el('btnReplay').textContent = 'WATCH LAST WAVE';
   el('btnRestart').textContent = '↺ RESTART';
   el('btnToMenu').textContent = '⎗ LOAD CHECKPOINT';
@@ -3559,6 +3578,7 @@ document.addEventListener('keydown', ev => {
     if (ev.key === 'Escape' && feedbackOpen) closeFeedback();
     return;
   }
+  if (gifCap) return; // capture in progress — hands off
   if (settingsOpen) { if (ev.key === 'Escape') closeSettings(); return; } // before menu: Enter must not start a run under the overlay
   if (feedbackOpen) { if (ev.key === 'Escape') closeFeedback(); return; }
   if (helpOpen) { if (ev.key === 'Escape') closeHelp(); return; }
@@ -3736,6 +3756,7 @@ el('lbName').addEventListener('keydown', ev => {
   ev.stopPropagation();
 });
 el('btnToMenu').addEventListener('click', () => {
+  if (gifCap) return;
   el('ovDone').classList.add('hide');
   el('ovMenu').classList.remove('hide');
   state = 'menu';
@@ -3829,8 +3850,9 @@ el('btnStart').addEventListener('click', () => {
   el('tipbar').innerHTML = 'TIP // ' + TIPS[0]; tipIdx = 1;
   sfx.horn();
 });
-el('btnRestart').addEventListener('click', () => { if (gameMode === 'raid') reenterRaidDesign(); else restartGame(); });
-el('btnReplay').addEventListener('click', () => { if (gameMode === 'raid') rewatchRaid(); else beginReplay(); });
+el('btnRestart').addEventListener('click', () => { if (gifCap) return; if (gameMode === 'raid') reenterRaidDesign(); else restartGame(); });
+el('btnReplay').addEventListener('click', () => { if (gifCap) return; if (gameMode === 'raid') rewatchRaid(); else beginReplay(); });
+el('btnGif').addEventListener('click', () => { startRaidGif(); sfx.click(); });
 el('btnEndless').addEventListener('click', () => {
   endless = true;
   el('ovDone').classList.add('hide');
@@ -4175,6 +4197,7 @@ function raidOver(breached) {
   renderAAR();
   el('lbWrap').style.display = 'none'; // no leaderboard for raids yet (PLANS.md)
   el('btnEndless').style.display = 'none';
+  if (!gifCap) { el('btnGif').style.display = ''; el('btnGif').textContent = 'SAVE CLIP (GIF)'; el('btnGif').disabled = false; }
   el('btnReplay').textContent = 'REWATCH RAID';
   el('btnRestart').textContent = 'RE-DESIGN RAID';
   el('btnToMenu').textContent = 'NEW TARGET';
@@ -4184,6 +4207,137 @@ function raidOver(breached) {
 function fastForwardRaid() { // ESC during rewatch: run the deterministic sim out instantly
   let guard = 200000;
   while (state === 'combat' && guard-- > 0) stepSim();
+}
+
+/* ================= raid clip capture (animated GIF, zero deps) =================
+   SAVE CLIP re-runs the deterministic raid (rewatch machinery), samples the
+   canvas at 8 fps into a fixed 256-color palette (216 cube + 40 grays) and
+   LZW-encodes each frame as it arrives, then downloads a real GIF89a. */
+let gifCap = null;
+const GIFPAL = (() => {
+  const p = new Uint8Array(768);
+  const L = [0, 51, 102, 153, 204, 255];
+  let i = 0;
+  for (const r of L) for (const g of L) for (const b of L) { p[i++] = r; p[i++] = g; p[i++] = b; }
+  for (let k = 0; k < 40; k++) { const v = Math.round(k * 255 / 39); p[i++] = v; p[i++] = v; p[i++] = v; }
+  return p;
+})();
+function gifQuant(r, g, b) {
+  if (Math.abs(r - g) < 12 && Math.abs(g - b) < 12 && Math.abs(r - b) < 12)
+    return 216 + Math.round((r + g + b) / 3 * 39 / 255);
+  return Math.round(r / 51) * 36 + Math.round(g / 51) * 6 + Math.round(b / 51);
+}
+function gifLzw(ind) { // raw GIF-LZW code stream, min code size 8
+  const bytes = [];
+  let bitBuf = 0, bitCnt = 0, codeSize = 9, next = 258;
+  let dict = new Map();
+  const emit = c => {
+    bitBuf |= c << bitCnt; bitCnt += codeSize;
+    while (bitCnt >= 8) { bytes.push(bitBuf & 255); bitBuf >>>= 8; bitCnt -= 8; }
+  };
+  emit(256); // clear
+  let prev = ind[0];
+  for (let i = 1; i < ind.length; i++) {
+    const px = ind[i];
+    const key = (prev << 8) | px;
+    const got = dict.get(key);
+    if (got !== undefined) { prev = got; continue; }
+    emit(prev);
+    if (next < 4093) { // reset a few slots early — dodges decoder edge cases at 4096
+      dict.set(key, next++);
+      if (next === (1 << codeSize) + 1 && codeSize < 12) codeSize++; // one later than the decoder's bump: they sync
+    } else {
+      emit(256);
+      dict = new Map(); next = 258; codeSize = 9;
+    }
+    prev = px;
+  }
+  emit(prev);
+  emit(257); // end of information
+  if (bitCnt > 0) bytes.push(bitBuf & 255);
+  return Uint8Array.from(bytes);
+}
+function gifHeaderBytes(w, h) {
+  const arr = new Uint8Array(13 + 768 + 19);
+  arr.set([71, 73, 70, 56, 57, 97, w & 255, w >> 8, h & 255, h >> 8, 0xF7, 0, 0], 0); // GIF89a + LSD
+  arr.set(GIFPAL, 13);
+  arr.set([0x21, 0xFF, 0x0B, 78, 69, 84, 83, 67, 65, 80, 69, 50, 46, 48, 3, 1, 0, 0, 0], 781); // loop forever
+  return arr;
+}
+function gifFrameBytes(w, h, ind) {
+  const lzw = gifLzw(ind);
+  const head = [0x21, 0xF9, 4, 0, 12, 0, 0, 0, // GCE: 0.12s delay
+    0x2C, 0, 0, 0, 0, w & 255, w >> 8, h & 255, h >> 8, 0, 8]; // image descriptor + min code size
+  const nBlocks = Math.ceil(lzw.length / 255);
+  const out = new Uint8Array(head.length + lzw.length + nBlocks + 1);
+  out.set(head, 0);
+  let o = head.length;
+  for (let i = 0; i < lzw.length; i += 255) {
+    const n = Math.min(255, lzw.length - i);
+    out[o++] = n;
+    out.set(lzw.subarray(i, i + n), o);
+    o += n;
+  }
+  out[o] = 0;
+  return out;
+}
+function startRaidGif() {
+  if (gameMode !== 'raid' || state !== 'rover' || gifCap || !raid) return;
+  const c2 = document.createElement('canvas');
+  c2.width = 480; c2.height = 270;
+  gifCap = {
+    parts: [gifHeaderBytes(480, 270)],
+    frames: 0, nextStep: 0,
+    cv: c2, ctx: c2.getContext('2d', { willReadFrequently: true }),
+    snd: soundOn,
+  };
+  soundOn = false; // fast-pumping the raid would strobe the sfx
+  el('btnGif').disabled = true;
+  rewatchRaid();
+  gifPump();
+}
+function gifCaptureFrame() {
+  const g = gifCap;
+  g.ctx.drawImage(cv, 0, 0, 480, 270);
+  const d = g.ctx.getImageData(0, 0, 480, 270).data;
+  const ind = new Uint8Array(480 * 270);
+  for (let i = 0, j = 0; i < ind.length; i++, j += 4) ind[i] = gifQuant(d[j], d[j + 1], d[j + 2]);
+  g.parts.push(gifFrameBytes(480, 270, ind));
+  g.frames++;
+}
+function gifPump() { // drives the sim itself (frame() stands down while gifCap is set)
+  if (!gifCap) return;
+  let steps = 0;
+  while (state === 'combat' && steps < 120) {
+    stepSim(); steps++;
+    if (simStep >= gifCap.nextStep && gifCap.frames < 480) {
+      render();
+      gifCaptureFrame();
+      gifCap.nextStep = simStep + 7.5; // 8 fps at the fixed 60Hz step
+    }
+    if (gifCap.frames >= 480) { fastForwardRaid(); break; } // 60s cap
+  }
+  if (state === 'combat') {
+    el('btnGif').textContent = 'RECORDING ' + gifCap.frames + 'f…';
+    setTimeout(gifPump, 0);
+  } else gifFinish();
+}
+function gifFinish() {
+  const g = gifCap;
+  gifCap = null;
+  if (!g) return;
+  soundOn = g.snd;
+  g.parts.push(new Uint8Array([0x3B]));
+  const blob = new Blob(g.parts, { type: 'image/gif' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'signal-decay-raid.gif';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  el('btnGif').disabled = false;
+  el('btnGif').textContent = 'CLIP SAVED — ' + g.frames + ' FRAMES';
 }
 
 /* ================= main loop ================= */
@@ -4206,7 +4360,7 @@ function frame(now) {
   last = now;
   time += dt;
   if (paused && autoAt) autoAt += dt; // countdown freezes while paused
-  if (!paused && (state === 'combat' || state === 'build' || state === 'rdesign')) {
+  if (!paused && !gifCap && (state === 'combat' || state === 'build' || state === 'rdesign')) {
     elapsed += dt;
     simAcc = Math.min(simAcc + dt * speed, 0.25);
     while (simAcc >= SIM_DT) {

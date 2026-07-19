@@ -286,6 +286,69 @@ setModeT(towers[1], 'weak');
 T(towers[1].mode === 'weak', 'setModeT applies a direct mode (bulk orders)');
 restartGame();
 
+/* gif encoder: round-trip against a spec-faithful LZW decoder */
+function lzwDecode(bytes) {
+  let pos = 0, bitBuf = 0, bitCnt = 0, codeSize = 9;
+  const read = () => {
+    while (bitCnt < codeSize && pos < bytes.length) { bitBuf |= bytes[pos++] << bitCnt; bitCnt += 8; }
+    const c = bitBuf & ((1 << codeSize) - 1);
+    bitBuf >>>= codeSize; bitCnt -= codeSize;
+    return c;
+  };
+  const out = [];
+  let table, next, prev;
+  const resetT = () => { table = []; for (let i = 0; i < 256; i++) table[i] = [i]; next = 258; codeSize = 9; prev = null; };
+  resetT();
+  for (; ;) {
+    const code = read();
+    if (code === 256) { resetT(); continue; }
+    if (code === 257) break;
+    let entry;
+    if (prev === null) { entry = table[code]; out.push(...entry); prev = code; continue; }
+    if (code < next && table[code]) entry = table[code];
+    else entry = table[prev].concat(table[prev][0]);
+    out.push(...entry);
+    if (next < 4096) {
+      table[next++] = table[prev].concat(entry[0]);
+      if (next === (1 << codeSize) && codeSize < 12) codeSize++;
+    }
+    prev = code;
+  }
+  return out;
+}
+{
+  const cases = [
+    new Uint8Array(5000),
+    Uint8Array.from({ length: 20000 }, () => Math.floor(Math.random() * 256)),
+    Uint8Array.from({ length: 70000 }, () => Math.floor(Math.random() * 256)), // forces 12-bit codes + dictionary reset
+    Uint8Array.from({ length: 9000 }, (_, i) => i % 7),
+  ];
+  let rtOK = true, why = '';
+  for (const cse of cases) {
+    const dec = lzwDecode(gifLzw(cse));
+    if (dec.length !== cse.length) { rtOK = false; why = 'len ' + dec.length + ' vs ' + cse.length; break; }
+    for (let i = 0; i < cse.length; i++) if (dec[i] !== cse[i]) { rtOK = false; why = 'byte ' + i; break; }
+    if (!rtOK) break;
+  }
+  T(rtOK, 'GIF LZW round-trips vs spec decoder (incl. 12-bit + reset)' + (why ? ' [' + why + ']' : ''));
+  const h = gifHeaderBytes(480, 270);
+  T(h[0] === 71 && h[1] === 73 && h[2] === 70 && h[3] === 56 && h[4] === 57 && h[5] === 97 &&
+    h.length === 13 + 768 + 19, 'GIF header well-formed (GIF89a + palette + loop)');
+  const f = gifFrameBytes(4, 4, new Uint8Array(16));
+  T(f[0] === 0x21 && f[8] === 0x2C && f[17] === 0 && f[18] === 8 && f[f.length - 1] === 0, 'GIF frame block well-formed');
+  T(gifQuant(0, 0, 0) === 216 && gifQuant(255, 255, 255) === 255 && gifQuant(255, 0, 0) === 180, 'palette quantizer maps anchors');
+}
+
+/* voice limiter */
+{
+  const _ac = AC, _s = soundOn;
+  AC = { currentTime: 1 }; soundOn = true;
+  T(voiceOK('t1', 2) && voiceOK('t1', 2) && !voiceOK('t1', 2), 'voice limiter caps stacked triggers');
+  AC.currentTime = 1.2;
+  T(voiceOK('t1', 2), 'voice limiter window expires');
+  AC = _ac; soundOn = _s;
+}
+
 /* presence net */
 {
   const cid = clientId();

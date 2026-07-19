@@ -16,9 +16,26 @@ Living document. Update as plans evolve (project rule: keep track of plans).
    budget and fly it against AI defense grids (presets, procedural, or any
    pasted SD1 checkpoint code). Offense X-RATE scoring, REWATCH,
    RE-DESIGN. Headless suite: node test/run.js (45 checks).
-4. LATER — Campaign/theater layer: 3-5 FOBs on a front, system inventory,
-   logistics/convoys, doctrine auto-resolve, enemy procurement adaptation
-   (composition adapts to SYS_STATS kills, not just routing).
+4. PARTIAL (2026-07-19) — Terrain, Theater and Convoy shipped as v1:
+   - TERRAIN: ridge capsules block sensor LOS to low-altitude drones
+     (radar shadows = attack corridors; hi-alt seen over ridges; no
+     placement on ridges; weapons unaffected - only sensing). Four AOs
+     (OPEN / RIDGE LINE / THE PASS / BADLANDS) + RANDOM on the DEFEND
+     tab; terrain id appended to SD1 codes (old codes read OPEN).
+   - THEATER (unlocked by winning any skirmish; sd_prog localStorage):
+     three FOBs (NORTH=The Pass, CENTER=Open, SOUTH=Ridge Line), one
+     $420 wallet, intel odds per rotation with a hidden weighted target,
+     rotations use WAVES[2,4,5,6,8,9,11,12,14] with their own hp/spd
+     ramp, transfers cost 15% (min $10) and arrive as crates (C key),
+     rotation-clear bonus 60 + 15xrotation. Any FOB falls = loss; hold
+     9 rotations = win. No save codes/replay (one sitting).
+   - CONVOY: train base at (720,360), six flatcar hardpoints, spawning
+     from all four edges starting at 12s; tier = elapsed/45s drives
+     rate (1.7 x 0.93^tier, floor 0.4s), roster unlocks, and hp ramp
+     (+8%/tier); kraken every 180s after 240s; $3/s supply trickle;
+     repairs and MOVE allowed mid-run; score = km at 32 m/s.
+   Deferred to later phases: system inventory/logistics depth, doctrine
+   auto-resolve, enemy procurement adaptation.
 5. LATER — Ghost-grid attacks via leaderboard-posted checkpoints, then
    async PvP raid rooms over the same Firebase RTDB (DEPLOY.md section 5).
 6. MAYBE — Drone-war RTS as its own project, only after 4-5 prove out.

@@ -379,6 +379,80 @@ function lzwDecode(bytes) {
   AC = _ac; soundOn = _s;
 }
 
+/* terrain */
+{
+  setTerrain(1); // RIDGE LINE: ridge from (300,175) to (620,115) r30
+  T(losBlocked(460, 40, 460, 260) === true, 'ridge blocks LOS through it');
+  T(losBlocked(100, 650, 1200, 650) === false, 'clear LOS away from ridges');
+  T(onRidge(460, 145, 0) === true && onRidge(460, 300, 0) === false, 'onRidge point test');
+  T(validPlace(460, 145) === false && validPlace(460, 320) === true, 'no towers on ridges');
+  diffKey = 'std'; menuTer = 2; restartGame();
+  T(terId === 2, 'restart applies the selected AO');
+  placeTower('vulcan', 900, 300);
+  const code = encodeSave();
+  menuTer = 0; restartGame();
+  T(terId === 0, 'AO resets');
+  applySave(decodeSave(code));
+  T(terId === 2, 'terrain survives the checkpoint codec');
+  menuTer = 0; restartGame();
+}
+
+/* theater */
+prog.theater = 1; // certified for the test
+startTheater();
+T(theater !== null && theater.fobs.length === 3 && state === 'build' && cash === 420, 'theater opens: three FOBs, shared wallet');
+switchFob(1);
+T(theater.cur === 1 && terId === FOB_DEFS[1].ter, 'FOB switch applies its terrain');
+placeTower('vulcan', 900, 300);
+switchFob(2);
+T(towers.length === 0, 'each FOB has its own grid');
+switchFob(1);
+T(towers.length === 1 && towers[0].k === 'vulcan', 'grid persists across switches');
+{
+  const preCash = cash;
+  transferTower(towers[0], 2);
+  T(towers.length === 0 && theater.pend[2].length === 1 && cash < preCash, 'transfer departs with a fee');
+  switchFob(2);
+  startCrate();
+  T(placingCrate !== null, 'crate ready to deploy');
+  placeCrate(700, 300);
+  T(towers.length === 1 && towers[0].k === 'vulcan' && theater.pend[2].length === 0, 'crate deploys at destination');
+}
+placeTower('vulcan', 1000, 300); placeTower('radar', 950, 380);
+theater.target = theater.cur; // force the fight here for determinism of the test
+commitRotation();
+T(state === 'combat' && theater !== null, 'rotation commits at the target FOB');
+ff(400000);
+T((state === 'build' && theater.rotation === 2) || state === 'over', 'rotation resolves (rot=' + (theater ? theater.rotation : '-') + ', state=' + state + ')');
+if (state === 'build') {
+  theater.rotation = theater.rotations; // jump to the finale
+  theater.target = theater.cur;
+  commitRotation(); ff(400000);
+  T(state === 'won' || state === 'over', 'theater ends after the final rotation (state=' + state + ')');
+}
+restartGame();
+T(theater === null, 'restart clears theater');
+
+/* convoy */
+startConvoy();
+T(convoy !== null && state === 'combat' && BASE.x === 720, 'convoy starts hot with the train base');
+T(nearestFreeSlot(605, 355) === 1, 'slot picker finds the nearest flatcar');
+placeTower('vulcan', CV_SLOTS[1], 360);
+T(slotFree(1) === false && slotFree(0) === true, 'slot occupancy tracked');
+{
+  let g = 60 * 40; // 40s of sim — spawning starts at 12s
+  while (g-- > 0 && state === 'combat') stepSim();
+  T(kills + enemies.length > 0, 'continuous spawner produced hostiles (' + (kills + enemies.length) + ')');
+}
+baseHP = 0.5; // force the ending
+{
+  let g = 60 * 30;
+  while (g-- > 0 && state === 'combat') stepSim();
+}
+T(state === 'over' && convoy !== null, 'convoy ends via convoyOver');
+restartGame();
+T(convoy === null && BASE.x === 1128, 'restart clears convoy and restores the FOB');
+
 /* presence net */
 {
   const cid = clientId();

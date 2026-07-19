@@ -63,7 +63,16 @@ on (code, comments, commits, docs, chat).
 - Game modes: `gameMode` 'skirmish' | 'raid'; states add `rdesign`
   (raid designer) and `rover` (raid end) beside menu/build/combat/over/won.
   Raid flow: `enterRaidDesign` -> `launchRaid` -> `beginRaidCombat` ->
-  `raidOver`; deterministic per `raid.seed` (REWATCH re-runs it).
+  `raidOver`; deterministic per `raid.seed` (REWATCH re-runs it). Raids
+  are OPERATIONS: 5+ strikes, sortie caps, unlocks, defender hardening.
+- Overlay modes on skirmish plumbing: `theater` (3 FOBs, transfers,
+  rotations; unlocked via `prog.theater`) and `convoy` (train hardpoints,
+  continuous spawning) — both one-sitting, no codes/replay; they null
+  each other and reset in restartGame/applySave/enterRaidDesign, and
+  `resetBase()` must run when leaving convoy (BASE is mutated).
+- Terrain: `TERRAINS`/`setTerrain`/`losBlocked`/`onRidge` — ridges mask
+  sensor LOS to low-alt drones only; terrain id is APPENDED to SD1 codes
+  (old codes read 0/OPEN — keep append-only compatibility).
 - Checkpoint codec: `encodeSave` / `decodeSave` pack the full run into a
   base-62 "SD1..." string with a 2-char checksum. If you add fields, mind
   the bit widths and the validation in `decodeSave`. Raid mode reuses the

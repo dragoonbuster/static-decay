@@ -273,8 +273,10 @@
       round costs money the enemy wants you to waste. Hold FOB AEGIS for 15 waves —
       and win the exchange.</p>
       <div class="ovrow" id="modeRow" style="margin-bottom:12px">
-        <button class="btn on" data-m="skirmish">DEFEND — SKIRMISH</button>
-        <button class="btn" data-m="raid">ATTACK — RAID DESIGNER</button>
+        <button class="btn on" data-m="skirmish">DEFEND</button>
+        <button class="btn" data-m="raid">ATTACK</button>
+        <button class="btn" data-m="theater">THEATER</button>
+        <button class="btn" data-m="convoy">CONVOY</button>
       </div>
       <div class="ovrow" style="margin-bottom:24px">
         <button class="btn mini" id="btnTutorial">TUTORIAL</button>
@@ -291,7 +293,15 @@
         <button class="btn" data-d="vet">VETERAN</button>
         <button class="btn" data-d="ngt">NIGHTMARE</button>
       </div>
-      <div id="diffDesc" style="font-size:10.5px;color:var(--dim);line-height:1.5;min-height:44px;margin-bottom:20px"></div>
+      <div id="diffDesc" style="font-size:10.5px;color:var(--dim);line-height:1.5;min-height:44px;margin-bottom:14px"></div>
+      <div class="sub" style="margin-bottom:6px" title="Ridges block sensor line-of-sight to low-flying drones — radar shadows are attack corridors">AREA OF OPERATIONS</div>
+      <div class="ovrow" id="terRow" style="margin-bottom:20px">
+        <button class="btn on" data-t="0">OPEN</button>
+        <button class="btn" data-t="1">RIDGE LINE</button>
+        <button class="btn" data-t="2">THE PASS</button>
+        <button class="btn" data-t="3">BADLANDS</button>
+        <button class="btn" data-t="-1">RANDOM</button>
+      </div>
       <div class="ovrow" style="margin-bottom:24px"><button class="btn primary" id="btnStart" style="font-size:17px;padding:12px 26px;flex:1">▶ ASSUME COMMAND</button></div>
       <div style="border-top:1px dashed var(--line2);padding-top:16px">
         <div class="sub" style="margin-bottom:6px">RESUME FROM CHECKPOINT</div>
@@ -334,6 +344,24 @@
       <div class="ovrow">
         <button class="btn primary" id="btnRaidStart" style="font-size:16px;padding:10px 26px">OPEN RAID DESIGNER</button>
       </div>
+      </div>
+      <div id="tabTheater" style="display:none">
+      <p style="margin-bottom:14px">Three FOBs hold the northern front — open ground at CENTER, a mountain
+      pass NORTH, ridgelines SOUTH. Intel gives odds on the enemy's main effort each
+      rotation; funds are shared, and systems transfer between bases by convoy for a
+      15% fee, arriving as crates. If any FOB falls, the front collapses. Hold all
+      three through nine rotations.</p>
+      <div id="thLock" class="sub" style="margin-bottom:12px"></div>
+      <div class="ovrow" style="margin-bottom:10px"><button class="btn primary" id="btnTheaterStart" style="font-size:16px;padding:10px 26px">ASSUME FRONT COMMAND</button></div>
+      <div class="sub">uses the THREAT LEVEL selected on the DEFEND tab</div>
+      </div>
+      <div id="tabConvoy" style="display:none">
+      <p style="margin-bottom:14px">The command train runs the eastern line. Six flatcar hardpoints, threat
+      from every bearing, and no pause between raids — the spawning only ramps.
+      Repairs are possible on the move, supply pays a slow trickle, and the run ends
+      one way. Score is distance.</p>
+      <div class="ovrow" style="margin-bottom:10px"><button class="btn primary" id="btnConvoyStart" style="font-size:16px;padding:10px 26px">ROLL OUT</button></div>
+      <div class="sub">uses the THREAT LEVEL selected on the DEFEND tab</div>
       </div>
     </div>
   </div>
@@ -475,6 +503,7 @@
       <button class="btn" id="dMove">MOVE</button>
       <button class="btn" id="dSell">SELL</button>
     </div>
+    <div id="dRow2" style="display:none;gap:6px"></div>
   </div>
 
   <div id="tutBox" class="hide">
@@ -497,7 +526,8 @@
       <div class="hlp"><b>NOTHING SHOOTS WHAT NOTHING SEES</b>
         Weapons only engage confirmed tracks. The FOB senses ~260m on its own;
         SENTINEL radar and ORACLE optics extend the picture. Fuzzy diamonds are
-        unconfirmed contacts — get a sensor on them.</div>
+        unconfirmed contacts — get a sensor on them. RIDGES block line-of-sight
+        to low flyers: radar shadows are attack corridors.</div>
       <div class="hlp"><b>THE POWER GRID</b>
         The FOB supplies 8 power and every system draws some. GENERATORS add +5.
         Nothing runs unpowered.</div>
@@ -570,6 +600,7 @@
 
 <div id="intel">
   <span class="tag">INTEL</span>
+  <span id="fobRow" style="display:none;gap:4px"></span>
   <span id="nextwave">Awaiting tasking…</span>
   <span id="tipbar"></span>
 </div>
@@ -801,6 +832,7 @@ function startTutorial() {
   document.querySelectorAll('#diffRow .btn').forEach(x => x.classList.toggle('on', x.dataset.d === 'ez'));
   el('diffDesc').textContent = DIFFS.ez.desc;
   restartGame();
+  setTerrain(0); // the field manual assumes open ground
   el('ovMenu').classList.add('hide');
   tut = { i: 0, s: TUT };
   el('tutBox').classList.remove('hide');
@@ -927,6 +959,11 @@ async function refreshOperators() {
     el('opsNet').textContent = n > 0 ? 'OPERATORS ON THE NET: ' + n : '';
   } catch (e) { el('opsNet').textContent = ''; }
 }
+
+/* ---------- persistent progression (device-local) ---------- */
+let prog = { theater: 0 };
+try { Object.assign(prog, JSON.parse(localStorage.getItem('sd_prog')) || {}); } catch (e) { }
+function saveProg() { try { localStorage.setItem('sd_prog', JSON.stringify(prog)); } catch (e) { } }
 
 /* ---------- radio log + mission clock ---------- */
 const CSNAMES = { vulcan: 'VULCAN', sam: 'JAVELIN', laser: 'DAZZLER', pulse: 'PULSE',
@@ -1277,6 +1314,7 @@ function spawnEnemy(type, edge, px, py) {
   if (px !== undefined) { x = px; y = py; }
   else if (edge === 'top') { x = sr(70, 760); y = -34; }
   else if (edge === 'bottom') { x = sr(70, 760); y = H + 34; }
+  else if (edge === 'right') { x = W + 34; y = sr(46, H - 46); } // convoy: 360-degree picture
   else { x = -34; y = sr(46, H - 46); }
   // recon drones survey across the AO instead of attacking
   let rtx = null, rty = null;
@@ -1409,7 +1447,7 @@ function primaryAxis() {
   return { name: ['WEST', 'NORTH', 'SOUTH'][i], edge: aw.axes[i], sharp: Math.max(...aw.w) / Math.min(...aw.w) };
 }
 function startWave() {
-  if (state !== 'build') return;
+  if (state !== 'build' || theater) return;
   autoAt = 0;
   waveStartCode = encodeSave(); // checkpoint: build phase, exactly as launched
   wave++;
@@ -1524,9 +1562,13 @@ function updEnemies(dt) {
     // SENSOR FUSION — a weapon can only engage a confirmed track:
     //   FOB organic sensors (stealth seen at 55%), search radar (stealth burn-through
     //   at 55% of radar range), or EO/IR optic (sees stealth at full range).
-    let conf = dist(e, BASE) < BASE.sense * (e.stealth ? 0.55 : 1) * env.sense;
+    const overTer = e.alt === 'hi'; // high flyers are seen over ridges
+    let conf = dist(e, BASE) < BASE.sense * (e.stealth ? 0.55 : 1) * env.sense &&
+      (overTer || !losBlocked(BASE.x, BASE.y, e.x, e.y));
     if (!conf) for (const t of towers) {
       if (t.offlineT > 0 || t.emcon || !t.powered) continue;
+      if (t.kind !== 'radar' && t.kind !== 'optic') continue;
+      if (!overTer && losBlocked(t.x, t.y, e.x, e.y)) continue;
       if (t.kind === 'radar' && dist(t, e) < t.range * (e.stealth ? 0.55 : 1)) { conf = true; break; }
       if (t.kind === 'optic' && dist(t, e) < t.range * env.optic) { conf = true; break; }
     }
@@ -1859,7 +1901,7 @@ function updFx(dt) {
 }
 
 function updWaves(dt) {
-  if (state !== 'combat') return;
+  if (state !== 'combat' || convoy) return; // convoy spawning is continuous, no wave-clear
   for (const q of spawnQ) {
     if (q.left <= 0) continue;
     q.t -= dt;
@@ -1868,6 +1910,7 @@ function updWaves(dt) {
   if (enemies.length === 0 && queuedLeft() === 0) {
     if (gameMode === 'raid') { raidOver(false); return; } // strike package expended
     if (replaying) { finishReplay(); return; }
+    if (theater) { rotationClear(); return; }
     const bonus = 25 + wave * 6;
     cash += bonus; earned += bonus;
     addText(BASE.x, BASE.y - 80, 'WAVE CLEAR +' + bonus, '#7dffab');
@@ -1944,11 +1987,18 @@ function exchangeGrade() {
 }
 function gameOver(win) {
   if (gameMode === 'raid') { raidOver(true); return; } // only reachable by breaching the FOB
+  if (convoy) { convoyOver(); return; }
+  if (theater) { theaterOver(false); return; }
   if (replaying) { finishReplay(); return; }
   endTutorial(false);
+  if (win && !prog.theater) {
+    prog.theater = 1; saveProg();
+    radioMsg('COMMAND: FRONT CERTIFICATION GRANTED — THEATER MODE UNLOCKED');
+  }
   el('lbWrap').style.display = '';
   el('btnGif').style.display = 'none';
   el('opWrap').style.display = 'none';
+  el('btnReplay').style.display = '';
   el('btnReplay').textContent = 'WATCH LAST WAVE';
   el('btnRestart').textContent = '↺ RESTART';
   el('btnToMenu').textContent = '⎗ LOAD CHECKPOINT';
@@ -1974,7 +2024,8 @@ function gameOver(win) {
 }
 
 function doRepair() {
-  if (state !== 'build' || baseHP >= baseMax || cash < 50) { sfx.deny(); return; }
+  const ok = state === 'build' || (convoy && state === 'combat'); // trains repair on the move
+  if (!ok || baseHP >= baseMax || cash < 50) { sfx.deny(); return; }
   cash -= 50;
   spent += 50; repairSpent += 50;
   baseHP = Math.min(baseMax, baseHP + 10);
@@ -2397,6 +2448,62 @@ function drawAuras() {
   }
 }
 
+/* ---------- terrain: ridges mask low-altitude tracks ----------
+   A ridge blocks sensor line-of-sight (FOB organic, radar, optic) to any
+   LOW-altitude drone behind it — radar shadows are attack corridors, and
+   the counterplay is pushing a sensor into the shadow. High-altitude
+   craft are seen over ridges. Towers cannot be built on ridges. Weapons
+   fire on any confirmed datalinked track (only sensing is masked). */
+const TERRAINS = [
+  { name: 'OPEN', ridges: [] },
+  { name: 'RIDGE LINE', ridges: [
+    { x1: 300, y1: 175, x2: 620, y2: 115, r: 30 },
+    { x1: 280, y1: 545, x2: 640, y2: 605, r: 30 },
+  ] },
+  { name: 'THE PASS', ridges: [
+    { x1: 420, y1: 290, x2: 700, y2: 430, r: 36 },
+    { x1: 880, y1: 150, x2: 990, y2: 215, r: 26 },
+  ] },
+  { name: 'BADLANDS', ridges: [
+    { x1: 240, y1: 360, x2: 420, y2: 250, r: 28 },
+    { x1: 520, y1: 480, x2: 760, y2: 520, r: 26 },
+    { x1: 620, y1: 140, x2: 830, y2: 190, r: 26 },
+  ] },
+];
+let terId = 0, TER = [];
+function setTerrain(id) {
+  terId = clamp(id | 0, 0, TERRAINS.length - 1);
+  TER = TERRAINS[terId].ridges;
+}
+function ptSegD2(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const L2 = dx * dx + dy * dy;
+  const t = L2 ? clamp(((px - x1) * dx + (py - y1) * dy) / L2, 0, 1) : 0;
+  const qx = x1 + t * dx - px, qy = y1 + t * dy - py;
+  return qx * qx + qy * qy;
+}
+function segsCross(ax, ay, bx, by, cx, cy, dx, dy) {
+  const o = (px, py, qx, qy, rx, ry) => Math.sign((qx - px) * (ry - py) - (qy - py) * (rx - px));
+  return o(ax, ay, bx, by, cx, cy) !== o(ax, ay, bx, by, dx, dy) &&
+    o(cx, cy, dx, dy, ax, ay) !== o(cx, cy, dx, dy, bx, by);
+}
+function segSegD2(ax, ay, bx, by, cx, cy, dx, dy) {
+  if (segsCross(ax, ay, bx, by, cx, cy, dx, dy)) return 0;
+  return Math.min(
+    ptSegD2(ax, ay, cx, cy, dx, dy), ptSegD2(bx, by, cx, cy, dx, dy),
+    ptSegD2(cx, cy, ax, ay, bx, by), ptSegD2(dx, dy, ax, ay, bx, by));
+}
+function losBlocked(x1, y1, x2, y2) {
+  for (const rg of TER)
+    if (segSegD2(x1, y1, x2, y2, rg.x1, rg.y1, rg.x2, rg.y2) < rg.r * rg.r) return true;
+  return false;
+}
+function onRidge(x, y, pad) {
+  for (const rg of TER)
+    if (ptSegD2(x, y, rg.x1, rg.y1, rg.x2, rg.y2) < (rg.r + (pad || 0)) * (rg.r + (pad || 0))) return true;
+  return false;
+}
+
 function snapXY(x, y) { // grid lock: placement snaps to the 40px map grid
   if (!settings.snap) return { x, y };
   return { x: clamp(Math.round(x / 40) * 40, 40, W - 40), y: clamp(Math.round(y / 40) * 40, 40, H - 40) };
@@ -2404,6 +2511,7 @@ function snapXY(x, y) { // grid lock: placement snaps to the 40px map grid
 function validPlace(x, y, ignore) { // ignore: the tower being moved vacates its own spot
   if (x < 24 || x > W - 24 || y < 24 || y > H - 24) return false;
   if (Math.hypot(x - BASE.x, y - BASE.y) < BASE.r + 38) return false;
+  if (onRidge(x, y, 14)) return false;
   for (const t of towers) if (t !== ignore && Math.hypot(x - t.x, y - t.y) < 34) return false;
   return true;
 }
@@ -2411,9 +2519,26 @@ function validPlace(x, y, ignore) { // ignore: the tower being moved vacates its
 function render() {
   ctx.save();
   if (shake > 0 && settings.shake) ctx.translate(rand(-1, 1) * shake * 6, rand(-1, 1) * shake * 6);
-  ctx.drawImage(bg, 0, 0);
+  if (convoy) {
+    const sc = (time * 140) % W;
+    ctx.drawImage(bg, -sc, 0);
+    ctx.drawImage(bg, W - sc, 0);
+  } else ctx.drawImage(bg, 0, 0);
+  // ridges (terrain varies per run — drawn over the static background)
+  for (const rg of TER) {
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#141d16'; ctx.lineWidth = rg.r * 2;
+    ctx.beginPath(); ctx.moveTo(rg.x1, rg.y1); ctx.lineTo(rg.x2, rg.y2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(118,102,70,0.30)'; ctx.lineWidth = Math.max(4, rg.r * 2 - 10);
+    ctx.beginPath(); ctx.moveTo(rg.x1, rg.y1); ctx.lineTo(rg.x2, rg.y2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(205,195,155,0.28)'; ctx.lineWidth = 2; // crest
+    ctx.beginPath(); ctx.moveTo(rg.x1, rg.y1); ctx.lineTo(rg.x2, rg.y2); ctx.stroke();
+    ctx.lineCap = 'butt';
+    ctx.fillStyle = 'rgba(205,195,155,0.35)'; ctx.font = '8px IBM Plex Mono'; ctx.textAlign = 'center';
+    ctx.fillText('RIDGE', (rg.x1 + rg.x2) / 2, (rg.y1 + rg.y2) / 2 + 3);
+  }
   drawAuras();
-  drawBase();
+  if (convoy) drawTrain(); else drawBase();
   // shadows (confirmed tracks only; high-altitude craft cast small, distant shadows)
   for (const e of enemies) {
     if (e.revealT <= 0) continue;
@@ -2472,6 +2597,21 @@ function render() {
     ctx.strokeRect(Math.min(dragSel.x0, dragSel.x1), Math.min(dragSel.y0, dragSel.y1),
       Math.abs(dragSel.x1 - dragSel.x0), Math.abs(dragSel.y1 - dragSel.y0));
     ctx.setLineDash([]);
+  }
+  // crate deploy ghost (theater arrivals)
+  if (placingCrate && mouse.in && state === 'build' && theater) {
+    const g = snapXY(mouse.x, mouse.y);
+    const d = TT[placingCrate.k];
+    const ok = validPlace(g.x, g.y);
+    const col = ok ? 'rgba(95,216,255,' : 'rgba(255,79,79,';
+    if (d.range > 0) {
+      ctx.fillStyle = col + '0.06)';
+      ctx.beginPath(); ctx.arc(g.x, g.y, d.range, 0, TAU); ctx.fill();
+      ctx.strokeStyle = col + '0.6)'; ctx.lineWidth = 1; ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(g.x, g.y, 15, 0, TAU); ctx.strokeStyle = col + '0.6)'; ctx.stroke();
+    ctx.fillStyle = col + '0.9)'; ctx.font = 'bold 11px IBM Plex Mono'; ctx.textAlign = 'center';
+    ctx.fillText('DEPLOY CRATE — ' + d.name + ' MK-' + (placingCrate.level || 1), g.x, g.y - 24);
   }
   // tutorial map marker
   if (tut && tut.s[tut.i] && tut.s[tut.i].mark) {
@@ -2800,6 +2940,7 @@ function encodeSave() {
     put(t.x / 4, 9);
     put(t.y / 4, 8);
   }
+  put(terId, 3); // appended field — old decoders ignore it, old codes read 0 (OPEN)
   const payload = b62enc(v);
   return 'SD1' + payload + cksum(payload);
 }
@@ -2824,6 +2965,8 @@ function decodeSave(code) {
     if (x < 24 || x > W - 24 || y < 24 || y > H - 24) throw new Error('data'); // crafted codes can't place off-map towers
     s.towers.push({ k: TKEYS[ti], level: lv, mode: MODE_ORDER[mo], prio: pr ? EKEYS[pr - 1] : null, emcon: !!em, struct: st, x, y });
   }
+  s.ter = get(3);
+  if (s.ter >= TERRAINS.length) s.ter = 0;
   if (s.diffIdx >= DKEYS.length || s.wave > 200 || (!s.endless && s.wave >= LAST_WAVE)) throw new Error('data');
   return s;
 }
@@ -2831,6 +2974,10 @@ function applySave(s) {
   endTutorial(false);
   const wasRaid = gameMode === 'raid';
   gameMode = 'skirmish'; raid = null;
+  theater = null; convoy = null; placingCrate = null;
+  resetBase();
+  el('fobRow').style.display = 'none';
+  el('btnAuto').style.display = '';
   if (wasRaid) buildShop();
   el('cashL').textContent = 'FUNDS';
   el('btnWave').style.display = ''; el('btnRepair').style.display = '';
@@ -2847,6 +2994,7 @@ function applySave(s) {
   csCount = {}; radio = []; radioKillT = -9; radioDiveT = -9; waveTypesLogged.clear(); clockJumps = s.wave;
   resetAAR();
   axisKills = { ...s.ak }; axisLeaks = { ...s.al }; intelBoost = s.intel; reconEscaped = false; waveStartCode = ''; waveRec = null; simAcc = 0;
+  setTerrain(s.ter || 0);
   towers = [];
   for (const st of s.towers) {
     const t = makeTower(st.k, st.x, st.y);
@@ -3172,6 +3320,7 @@ function refreshDetail() {
     return;
   }
   el('dRow').style.display = '';
+  el('dRow2').style.display = 'none';
   el('dStats').style.overflowY = '';
   const d = el('detail');
   d.classList.remove('draggable'); // skirmish panel is fixed bottom-right (CSS)
@@ -3219,8 +3368,18 @@ function refreshDetail() {
   const mv = el('dMove');
   const mc = moveCost(t);
   mv.textContent = 'MOVE ' + fmt$(mc);
-  mv.disabled = state !== 'build' || cash < mc;
-  mv.title = 'Redeploy this emplacement for ' + fmt$(mc) + ' (~10% of its value) [M] — between waves only';
+  mv.disabled = (state !== 'build' && !convoy) || cash < mc;
+  mv.title = 'Redeploy this emplacement for ' + fmt$(mc) + ' (~10% of its value) [M]' + (convoy ? '' : ' — between waves only');
+  if (theater && state === 'build') { // convoy transfers to the other FOBs
+    let h2 = '';
+    theater.fobs.forEach((f, i) => {
+      if (i === theater.cur) return;
+      h2 += '<button class="btn rbtn" data-x="' + i + '" style="flex:1" title="Transfer to FOB ' + f.name +
+        ' by convoy — 15% fee, arrives as a crate">XFER ' + f.name + ' ' + fmt$(XFER_FEE(t)) + '</button>';
+    });
+    el('dRow2').innerHTML = h2;
+    el('dRow2').style.display = 'flex';
+  }
   const ov = el('dOvr');
   ov.style.display = t.k === 'optic' ? '' : 'none';
   ov.textContent = t.override ? 'OVR ON' : 'OVR OFF';
@@ -3349,7 +3508,7 @@ function doSell() {
   sel = null; refreshDetail(); sfx.click();
 }
 function startMove() {
-  if (!sel || state !== 'build' || gameMode === 'raid') return;
+  if (!sel || gameMode === 'raid' || (state !== 'build' && !convoy)) return;
   if (cash < moveCost(sel)) { sfx.deny(); return; }
   movingT = sel;
   placing = null;
@@ -3441,6 +3600,7 @@ const TIPS = [
   'Hold <b>SHIFT</b> while placing to build several. Press <b>T</b> to change a system\'s targeting priority.',
   'Weather is a sensor problem: <b>RAIN and FOG</b> choke EO/IR and lasers, <b>NIGHT</b> shortens the FOB\'s organic sensing — radar does not care. Check CONDITIONS in the intel strip.',
   'Night raids favor the attacker. When the next wave is <b>NIGHT</b>, lean on SENTINEL radar coverage over ORACLE optics.',
+  '<b>Ridges block sensor line-of-sight</b> to low-flying drones — a radar shadow is an attack corridor. Push a picket sensor INTO the shadow, or let your guns cover the exit.',
 ];
 let tipIdx = 0;
 setInterval(() => {
@@ -3468,11 +3628,13 @@ function refreshTop() {
     el('pwrV').textContent = pv;
     el('pwrV').style.color = pu >= pc ? 'var(--red)' : pc - pu <= 1 ? 'var(--amber)' : 'var(--cyan)';
   }
-  const wv = gameMode === 'raid' ? 'RAID' : wave + '/' + (endless ? '∞' : '15');
+  const wv = gameMode === 'raid' ? 'RAID' : convoy ? 'ESCORT'
+    : theater ? theater.rotation + '/' + theater.rotations
+    : wave + '/' + (endless ? '∞' : '15');
   if (wv !== _wave) { _wave = wv; el('waveV').textContent = wv; }
   const hv = state === 'combat' ? String(enemies.length + queuedLeft()) : '—';
   if (hv !== _host) { _host = hv; el('hostV').textContent = hv; }
-  el('btnRepair').disabled = !(state === 'build' && baseHP < baseMax && cash >= 50);
+  el('btnRepair').disabled = !((state === 'build' || (convoy && state === 'combat')) && baseHP < baseMax && cash >= 50);
   const xr = gameMode === 'raid'
     ? (raid && raid.cost > 0 ? ((baseMax - Math.max(0, Math.round(baseHP))) * 5 + raid.genValue) / raid.cost : -1)
     : (spent > 0 ? (destroyed / spent) : -1);
@@ -3482,7 +3644,7 @@ function refreshTop() {
     el('xrV').textContent = xt;
     el('xrV').style.color = xr < 0 ? 'var(--dim)' : xr >= 1 ? 'var(--phos)' : xr >= 0.5 ? 'var(--amber)' : 'var(--red)';
   }
-  if (state === 'build') {
+  if (state === 'build' && !theater && !convoy) { // theater/convoy runs are one sitting, no codes
     if (--saveTick <= 0) {
       saveTick = 30;
       const c = encodeSave();
@@ -3534,9 +3696,25 @@ cv.addEventListener('pointerdown', ev => {
   if (replaying || state === 'menu' || state === 'over' || state === 'won' || state === 'rover') return;
   if (state === 'rdesign') return; // target grid is view-only; hover shows ranges
   const p0 = canvasXY(ev);
-  const p = (placing || movingT) ? snapXY(p0.x, p0.y) : p0; // grid lock affects placement only
+  const p = (placing || movingT || placingCrate) ? snapXY(p0.x, p0.y) : p0; // grid lock affects placement only
+  if (placingCrate && theater) {
+    if (state !== 'build') { placingCrate = null; return; }
+    if (validPlace(p.x, p.y)) { placeCrate(p.x, p.y); sfx.click(); }
+    else sfx.deny();
+    return;
+  }
   if (movingT) {
-    if (state !== 'build' || !towers.includes(movingT)) { movingT = null; return; }
+    if ((state !== 'build' && !convoy) || !towers.includes(movingT)) { movingT = null; return; }
+    if (convoy) {
+      const si = nearestFreeSlot(p0.x, p0.y);
+      if (si >= 0 && cash >= moveCost(movingT)) {
+        moveTower(movingT, CV_SLOTS[si], 360);
+        movingT = null;
+        refreshDetail();
+        sfx.click();
+      } else sfx.deny();
+      return;
+    }
     const hasCov = !DIFFS[diffKey].fieldPwr || TT[movingT.k].draw === 0 || genCovered(p.x, p.y);
     if (validPlace(p.x, p.y, movingT) && cash >= moveCost(movingT) && hasCov) {
       moveTower(movingT, p.x, p.y);
@@ -3548,6 +3726,18 @@ cv.addEventListener('pointerdown', ev => {
   }
   if (placing) {
     const d = TT[placing];
+    if (convoy) { // hardpoints only
+      const si = nearestFreeSlot(p0.x, p0.y);
+      if (si >= 0 && cash >= d.cost && (d.draw === 0 || powerUsed() + d.draw <= powerCap())) {
+        placeTower(placing, CV_SLOTS[si], 360);
+        sfx.click();
+        if (!ev.shiftKey) {
+          placing = null;
+          document.querySelectorAll('.card').forEach(c => c.classList.remove('sel'));
+        }
+      } else sfx.deny();
+      return;
+    }
     const hasPwr = d.draw === 0 || powerUsed() + d.draw <= powerCap();
     const hasCov = !DIFFS[diffKey].fieldPwr || d.draw === 0 || genCovered(p.x, p.y);
     if (validPlace(p.x, p.y) && cash >= d.cost && hasPwr && hasCov) {
@@ -3569,7 +3759,7 @@ cv.addEventListener('pointerdown', ev => {
 });
 cv.addEventListener('contextmenu', ev => {
   ev.preventDefault();
-  placing = null; sel = null; movingT = null; multiSel = null; dragSel = null; refreshDetail();
+  placing = null; sel = null; movingT = null; multiSel = null; dragSel = null; placingCrate = null; refreshDetail();
   document.querySelectorAll('.card').forEach(c => c.classList.remove('sel'));
 });
 
@@ -3605,11 +3795,12 @@ document.addEventListener('keydown', ev => {
   if (k >= '1' && k <= '9') { if (gameMode === 'raid') addRaidGroup(RKEYS[+k - 1]); else selectShop(TKEYS[+k - 1]); }
   else if (k === '0' && gameMode === 'raid') addRaidGroup(RKEYS[9]);
   else if (k === 'r') doRepair();
-  else if (k === 'escape') { placing = null; sel = null; movingT = null; multiSel = null; dragSel = null; refreshDetail();
+  else if (k === 'escape') { placing = null; sel = null; movingT = null; multiSel = null; dragSel = null; placingCrate = null; refreshDetail();
     document.querySelectorAll('.card').forEach(c => c.classList.remove('sel')); }
   else if (k === 'm') startMove();
+  else if (k === 'c') startCrate();
   else if (k === 'g') { settings.snap = !settings.snap; saveSettings(); sfx.click(); }
-  else if (k === ' ') { ev.preventDefault(); if (state === 'build') startWave(); else if (state === 'rdesign') launchRaid(); else togglePause(); }
+  else if (k === ' ') { ev.preventDefault(); if (state === 'build') { if (theater) commitRotation(); else startWave(); } else if (state === 'rdesign') launchRaid(); else togglePause(); }
   else if (k === 'u') doUpgrade();
   else if (k === 'e') toggleEmcon();
   else if (k === 't') cycleMode();
@@ -3638,7 +3829,15 @@ function toggleSpeed() {
   speed = speed === 1 ? 2 : 1;
   el('btnSpeed').textContent = speed + '×';
 }
-el('btnWave').addEventListener('click', () => { initAudio(); startWave(); });
+el('btnWave').addEventListener('click', () => { initAudio(); if (theater) { commitRotation(); return; } startWave(); });
+el('fobRow').addEventListener('click', ev => {
+  const b = ev.target.closest('[data-f]');
+  if (b) switchFob(+b.dataset.f);
+});
+el('dRow2').addEventListener('click', ev => {
+  const b = ev.target.closest('[data-x]');
+  if (b && sel) transferTower(sel, +b.dataset.x);
+});
 const AUTO_MODES = ['off', '10', 'instant'];
 function autoLabel() { return 'AUTO: ' + (settings.auto === 'off' ? 'OFF' : settings.auto === '10' ? '10S' : 'NOW'); }
 el('btnAuto').addEventListener('click', () => {
@@ -3779,6 +3978,15 @@ document.querySelectorAll('#diffRow .btn').forEach(b => {
     sfx.click();
   });
 });
+/* terrain selector */
+let menuTer = 0;
+document.querySelectorAll('#terRow .btn').forEach(b => {
+  b.addEventListener('click', () => {
+    menuTer = +b.dataset.t;
+    document.querySelectorAll('#terRow .btn').forEach(x => x.classList.toggle('on', x === b));
+    sfx.click();
+  });
+});
 /* raid menu tab */
 const raidSel = { g: 'p0', night: false, wx: 'CLEAR' };
 const RAID_INFO = {
@@ -3794,11 +4002,22 @@ const RAID_INFO = {
 document.querySelectorAll('#modeRow .btn[data-m]').forEach(b => {
   b.addEventListener('click', () => {
     document.querySelectorAll('#modeRow .btn[data-m]').forEach(x => x.classList.toggle('on', x === b));
-    el('tabSkirmish').style.display = b.dataset.m === 'skirmish' ? '' : 'none';
-    el('tabRaid').style.display = b.dataset.m === 'raid' ? '' : 'none';
+    const m = b.dataset.m;
+    el('tabSkirmish').style.display = m === 'skirmish' ? '' : 'none';
+    el('tabRaid').style.display = m === 'raid' ? '' : 'none';
+    el('tabTheater').style.display = m === 'theater' ? '' : 'none';
+    el('tabConvoy').style.display = m === 'convoy' ? '' : 'none';
+    if (m === 'theater') refreshTheaterTab();
     sfx.click();
   });
 });
+function refreshTheaterTab() {
+  el('thLock').innerHTML = prog.theater ? 'CERTIFIED FOR FRONT COMMAND — three FOBs await.' :
+    '<span style="color:var(--amber)">LOCKED — hold FOB AEGIS through all 15 waves of a skirmish (any threat level) to certify for front command.</span>';
+  el('btnTheaterStart').disabled = !prog.theater;
+}
+el('btnTheaterStart').addEventListener('click', () => { initAudio(); if (AC && AC.state === 'suspended') AC.resume(); startTheater(); });
+el('btnConvoyStart').addEventListener('click', () => { initAudio(); if (AC && AC.state === 'suspended') AC.resume(); startConvoy(); });
 document.querySelectorAll('#tabRaid [data-g]').forEach(b => {
   b.addEventListener('click', () => {
     raidSel.g = b.dataset.g;
@@ -3860,6 +4079,8 @@ el('btnStart').addEventListener('click', () => {
 });
 el('btnRestart').addEventListener('click', () => {
   if (gifCap) return;
+  if (theater) { startTheater(); return; }
+  if (convoy) { startConvoy(); return; }
   if (gameMode === 'raid') { if (raid && raid.op.over) enterRaidDesign(raid.spec); else nextStrike(); }
   else restartGame();
 });
@@ -3905,6 +4126,10 @@ function restartGame() {
   endTutorial(false); // startTutorial re-arms after this returns
   const wasRaid = gameMode === 'raid';
   gameMode = 'skirmish'; raid = null; replaying = false; runSnap = null;
+  theater = null; convoy = null; placingCrate = null;
+  resetBase();
+  el('fobRow').style.display = 'none';
+  el('btnAuto').style.display = '';
   if (wasRaid) buildShop();
   el('cashL').textContent = 'FUNDS';
   el('btnWave').style.display = ''; el('btnRepair').style.display = '';
@@ -3916,6 +4141,7 @@ function restartGame() {
   spawnQ = []; seen.clear();
   csCount = {}; radio = []; radioKillT = -9; radioDiveT = -9; waveTypesLogged.clear(); clockJumps = 0;
   resetAAR();
+  setTerrain(menuTer === -1 ? ri(0, TERRAINS.length - 1) : menuTer);
   cash = 260; wave = 0; kills = 0; earned = 0; elapsed = 0;
   endless = false; hpMul = 1; paused = false; speed = 1;
   spent = 0; destroyed = 0; repairSpent = 0; resetSys();
@@ -4031,7 +4257,7 @@ function raidTargetSpec() {
   const g = raidSel.g;
   if (g === 'code') {
     const s = decodeSave(el('raidCode').value);
-    return { name: 'CAPTURED GRID', diff: DKEYS[s.diffIdx], towers: s.towers.map(t => ({ ...t })) };
+    return { name: 'CAPTURED GRID', diff: DKEYS[s.diffIdx], ter: s.ter || 0, towers: s.towers.map(t => ({ ...t })) };
   }
   if (g.charAt(0) === 'p' && g !== 'proc1' && g !== 'proc2' && g !== 'proc3') return PRESET_GRIDS[+g.slice(1)];
   return genGrid({ proc1: 700, proc2: 1200, proc3: 1800 }[g]);
@@ -4039,6 +4265,9 @@ function raidTargetSpec() {
 function enterRaidDesign(spec) {
   endTutorial(false);
   gameMode = 'raid';
+  theater = null; convoy = null; placingCrate = null;
+  resetBase();
+  el('fobRow').style.display = 'none';
   enemies = []; projs = []; birds = []; parts = []; texts = []; rings = []; tracers = []; spawnQ = [];
   placing = null; sel = null; hoverT = null; movingT = null; multiSel = null; dragSel = null; autoAt = 0; paused = false; speed = 1;
   radio = []; radioKillT = -9; radioDiveT = -9; waveTypesLogged.clear(); clockJumps = 0;
@@ -4046,6 +4275,7 @@ function enterRaidDesign(spec) {
   shake = 0; flash = 0; waveBanner = 0;
   diffKey = spec.diff || 'std';
   applyDiff();
+  setTerrain(spec.ter || 0); // captured grids bring their ground with them
   buildDefense(spec.towers);
   const value = towers.reduce((a, t) => a + t.invested, 0);
   maniPos = null; // fresh target: manifest re-centers
@@ -4226,6 +4456,7 @@ function updateRaidPanel() {
   d.classList.remove('hide');
   d.classList.add('draggable');
   el('dRow').style.display = 'none';
+  el('dRow2').style.display = 'none';
   el('dPrio').style.display = 'none';
   el('dName').title = 'Drag to move this panel';
   el('dName').innerHTML = 'RAID MANIFEST <span>$' + raidCost() + '/$' + raid.budget + ' · ' +
@@ -4362,6 +4593,7 @@ function raidOver(breached) {
   el('lbWrap').style.display = 'none'; // no leaderboard for raids yet (PLANS.md)
   el('btnEndless').style.display = 'none';
   if (!gifCap) { el('btnGif').style.display = ''; el('btnGif').textContent = 'SAVE CLIP (GIF)'; el('btnGif').disabled = false; }
+  el('btnReplay').style.display = '';
   el('btnReplay').textContent = 'REWATCH STRIKE';
   el('btnRestart').textContent = op.over ? 'NEW OPERATION' : 'NEXT STRIKE';
   el('btnToMenu').textContent = op.over ? 'NEW TARGET' : 'ABANDON OP';
@@ -4371,6 +4603,307 @@ function raidOver(breached) {
 function fastForwardRaid() { // ESC during rewatch: run the deterministic sim out instantly
   let guard = 200000;
   while (state === 'combat' && guard-- > 0) stepSim();
+}
+
+/* ================= theater mode: three FOBs, one front =================
+   Unlocked by winning a skirmish. Shared wallet, per-FOB grids and
+   terrain, intel odds on the enemy's main effort each rotation, and
+   convoy transfers between bases (15% fee, arrive as crates). Any FOB
+   falls = the front collapses. Hold nine rotations to win. No save
+   codes or replays in theater (too much state) — runs are one sitting. */
+let theater = null, placingCrate = null;
+const FOB_DEFS = [
+  { name: 'NORTH', ter: 2 },
+  { name: 'CENTER', ter: 0 },
+  { name: 'SOUTH', ter: 1 },
+];
+const THEATER_TEMPLATES = [2, 4, 5, 6, 8, 9, 11, 12, 14]; // WAVES index per rotation
+const XFER_FEE = t => Math.max(10, Math.round(t.invested * 0.15 / 5) * 5);
+function startTheater() {
+  if (!prog.theater) { sfx.deny(); return; }
+  restartGame(); // full skirmish-shaped reset; theater layers on top
+  theater = {
+    fobs: FOB_DEFS.map(f => ({ name: f.name, ter: f.ter, spec: [], hp: baseMax })),
+    cur: 0, rotation: 1, rotations: 9, target: 0, odds: [1 / 3, 1 / 3, 1 / 3],
+    pend: [[], [], []],
+  };
+  cash = 420; // one war chest, three grids
+  waveRec = null;
+  rollRotationIntel();
+  loadFob(theater.odds.indexOf(Math.max(...theater.odds)));
+  el('ovMenu').classList.add('hide');
+  el('tipbar').innerHTML = 'FRONT // switch FOBs in the intel strip · XFER moves systems by convoy · C places arrived crates';
+  sfx.horn();
+}
+function saveCurFob() {
+  const f = theater.fobs[theater.cur];
+  f.spec = towersToSpec();
+  f.hp = Math.max(0, Math.round(baseHP));
+}
+function loadFob(i) {
+  theater.cur = i;
+  const f = theater.fobs[i];
+  setTerrain(f.ter);
+  buildDefense(f.spec);
+  baseHP = f.hp;
+  sel = null; multiSel = null; movingT = null; placingCrate = null; placing = null; hoverT = null;
+  _pwr = ''; _hp = -1;
+  refreshDetail();
+  buildFobRow();
+  renderTheaterIntel();
+}
+function switchFob(i) {
+  if (!theater || state !== 'build' || i === theater.cur) return;
+  saveCurFob();
+  loadFob(i);
+  sfx.click();
+}
+function rollRotationIntel() {
+  const w = [rand(0.25, 1), rand(0.25, 1), rand(0.25, 1)];
+  const tot = w[0] + w[1] + w[2];
+  theater.odds = w.map(x => x / tot);
+  let r = Math.random() * tot;
+  theater.target = 0;
+  for (let i = 0; i < 3; i++) { if ((r -= w[i]) <= 0) { theater.target = i; break; } }
+}
+function buildFobRow() {
+  if (!theater) { el('fobRow').style.display = 'none'; return; }
+  let h = '';
+  theater.fobs.forEach((f, i) => {
+    h += '<button class="btn rbtn' + (i === theater.cur ? ' on' : '') + '" data-f="' + i + '">' +
+      f.name + ' ' + f.hp + (theater.pend[i].length ? ' [' + theater.pend[i].length + ']' : '') + '</button>';
+  });
+  el('fobRow').innerHTML = h;
+  el('fobRow').style.display = 'inline-flex';
+}
+function renderTheaterIntel() {
+  if (!theater) return;
+  const o = theater.odds;
+  el('nextwave').innerHTML = '<b>ROTATION ' + theater.rotation + '/' + theater.rotations + '</b> — main effort: ' +
+    theater.fobs.map((f, i) => '<span style="color:' + (o[i] > 0.4 ? 'var(--red)' : 'var(--ink)') + '">' +
+      f.name + ' ' + Math.round(o[i] * 100) + '%</span>').join(' · ') +
+    ' · viewing <b>' + theater.fobs[theater.cur].name + '</b>' +
+    (theater.pend[theater.cur].length ? ' · <span class="new">' + theater.pend[theater.cur].length + ' CRATE(S) — PRESS C</span>' : '');
+  el('btnWave').textContent = 'COMMIT ROTATION ' + theater.rotation + ' ▶';
+}
+function transferTower(t, dest) {
+  if (!theater || state !== 'build' || dest === theater.cur || !towers.includes(t)) return;
+  const fee = XFER_FEE(t);
+  if (cash < fee) { sfx.deny(); return; }
+  cash -= fee;
+  spent += fee; if (SYS_STATS[t.k]) SYS_STATS[t.k].spent += fee;
+  theater.pend[dest].push({ k: t.k, level: t.level, mode: t.mode, prio: t.prio, emcon: t.emcon, override: t.override, struct: t.struct });
+  towers = towers.filter(x => x !== t);
+  if (sel === t) sel = null;
+  if (movingT === t) movingT = null;
+  _pwr = '';
+  radioMsg('LOGISTICS: ' + TT[t.k].name + ' EN ROUTE TO FOB ' + theater.fobs[dest].name + ' — FEE $' + fee);
+  refreshDetail();
+  buildFobRow();
+  renderTheaterIntel();
+  sfx.click();
+}
+function startCrate() {
+  if (!theater || state !== 'build') return;
+  const q = theater.pend[theater.cur];
+  if (!q.length) { sfx.deny(); return; }
+  placingCrate = q[0];
+  placing = null; movingT = null;
+  document.querySelectorAll('.card').forEach(c => c.classList.remove('sel'));
+  sfx.click();
+}
+function placeCrate(x, y) {
+  const st = theater.pend[theater.cur].shift();
+  const t = makeTower(st.k, x, y);
+  if (st.level > 1) for (let L = 2; L <= st.level; L++) { t.invested += upCost(t); t.level = L; }
+  applyStats(t);
+  t.mode = st.mode; t.prio = st.prio || null; t.emcon = !!st.emcon; t.override = !!st.override;
+  if (t.k === 'gen') t.struct = st.struct || 3;
+  towers.push(t);
+  _pwr = '';
+  placingCrate = theater.pend[theater.cur][0] || null;
+  addText(x, y - 24, 'CRATE DEPLOYED', '#5fd8ff');
+  buildFobRow();
+  renderTheaterIntel();
+}
+function commitRotation() {
+  if (!theater || state !== 'build') return;
+  saveCurFob();
+  if (theater.cur !== theater.target) loadFob(theater.target);
+  const tmpl = WAVES[THEATER_TEMPLATES[Math.min(theater.rotation, THEATER_TEMPLATES.length) - 1]];
+  hpMul = (1 + 0.11 * (theater.rotation - 1)) * diffHp;
+  spdMul = Math.min(1.8, (1 + 0.03 * (theater.rotation - 1))) * diffSpd;
+  simRand = mulberry32((Math.random() * 4294967296) >>> 0);
+  spawnQ = tmpl.map(q => ({ ...q, t: q.delay, left: q.count }));
+  tmpl.forEach(q => seen.add(q.type));
+  rollNextEnv();
+  waveRec = null;
+  wave = theater.rotation;
+  waveTypesLogged.clear();
+  movingT = null; placingCrate = null; placing = null; sel = null; multiSel = null;
+  refreshDetail();
+  simStep = 0; simAcc = 0;
+  state = 'combat'; waveBanner = 2.2;
+  el('btnWave').disabled = true;
+  radioMsg('ALL STATIONS: ROTATION ' + theater.rotation + ' — MAIN EFFORT AT FOB ' + theater.fobs[theater.target].name);
+  el('nextwave').innerHTML = '<b>ROTATION ' + theater.rotation + '</b> — enemy main effort at <b>' + theater.fobs[theater.target].name + '</b>';
+  sfx.horn();
+}
+function rotationClear() {
+  const bonus = 60 + theater.rotation * 15;
+  cash += bonus; earned += bonus;
+  addText(BASE.x, BASE.y - 80, 'ROTATION HELD +' + bonus, '#7dffab');
+  radioMsg('FRONT: ROTATION ' + theater.rotation + ' HELD — RESUPPLY +$' + bonus);
+  clockJumps++;
+  saveCurFob();
+  theater.rotation++;
+  if (theater.rotation > theater.rotations) { theaterOver(true); return; }
+  rollRotationIntel();
+  state = 'build';
+  el('btnWave').disabled = false;
+  rollNextEnv();
+  buildFobRow();
+  renderTheaterIntel();
+}
+function theaterOver(win) {
+  state = win ? 'won' : 'over';
+  if (!win && theater) saveCurFob();
+  const rots = theater ? theater.rotation - (win ? 1 : 0) : 0;
+  const ex = exchangeGrade();
+  el('doneTitle').innerHTML = win ? 'FRONT HELD' : '<span class="bad">FRONT COLLAPSED</span>';
+  el('doneMsg').textContent = win ? 'ALL THREE FOBS STANDING AFTER ' + (theater ? theater.rotations : 9) + ' ROTATIONS'
+    : 'FOB ' + (theater ? theater.fobs[theater.cur].name : '') + ' OVERRUN ON ROTATION ' + (theater ? theater.rotation : 0);
+  el('doneStats').innerHTML =
+    'ROTATIONS HELD: <span>' + Math.max(0, win ? rots : rots - 1) + '</span> · HOSTILES DOWN: <span>' + kills + '</span><br>' +
+    'COST EXCHANGE&nbsp;&nbsp;: <span>$' + destroyed + '</span> downed vs <span>$' + spent + '</span> expended = <span>' +
+    ex.r.toFixed(2) + ' : 1</span> — GRADE <span style="font-size:15px">' + ex.g + '</span>';
+  renderAAR();
+  el('lbWrap').style.display = 'none';
+  el('opWrap').style.display = 'none';
+  el('btnEndless').style.display = 'none';
+  el('btnGif').style.display = 'none';
+  el('btnReplay').style.display = 'none';
+  el('btnRestart').textContent = 'NEW FRONT';
+  el('btnToMenu').textContent = '⌂ MAIN MENU';
+  el('fobRow').style.display = 'none';
+  el('ovDone').classList.remove('hide');
+  if (win) sfx.cash(); else sfx.boom(2);
+}
+
+/* ================= convoy mode: FOB on the move =================
+   The command train runs the eastern line: six flatcar hardpoints, a
+   360-degree threat picture, and no waves — spawning ramps forever.
+   Repairs are allowed on the move, supply pays a trickle, and the run
+   ends one way. Score is distance. */
+let convoy = null;
+const BASE0 = { x: 1128, y: 360, r: 54, sense: 260 };
+function resetBase() { BASE.x = BASE0.x; BASE.y = BASE0.y; BASE.r = BASE0.r; BASE.sense = BASE0.sense; }
+const CV_SLOTS = [520, 600, 680, 760, 840, 920]; // flatcar hardpoints, y = 360
+function slotFree(i) { return !towers.some(t => Math.abs(t.x - CV_SLOTS[i]) < 2 && Math.abs(t.y - 360) < 2); }
+function nearestFreeSlot(x, y) {
+  let best = -1, bd = 46;
+  CV_SLOTS.forEach((sx, i) => {
+    const d = Math.hypot(x - sx, y - 360);
+    if (d < bd && slotFree(i)) { bd = d; best = i; }
+  });
+  return best;
+}
+function startConvoy() {
+  restartGame();
+  convoy = { spawnT: 12, frac: 0, envT: 90, boss: 240 };
+  BASE.x = 720; BASE.y = 360; BASE.r = 40;
+  setTerrain(0);
+  waveRec = null;
+  state = 'combat';
+  el('btnWave').style.display = 'none';
+  el('btnAuto').style.display = 'none';
+  el('ovMenu').classList.add('hide');
+  el('nextwave').innerHTML = '<b>ESCORT DUTY</b> — the line goes hot in 12s. Mount systems on the flatcars; threat comes from every bearing and never stops.';
+  el('tipbar').innerHTML = 'CONVOY // click a card, then a flatcar slot · M moves between slots · R repairs on the move';
+  radioMsg('RAILHEAD: CONVOY ROLLING — ALL SYSTEMS MOUNT UP');
+  rollNextEnv();
+  sfx.horn();
+}
+function convoyUpdate(dt) { // driven from stepSim during convoy combat
+  convoy.frac += dt * 3; // supply trickle $3/s keeps the build alive
+  if (convoy.frac >= 1) { const add = Math.floor(convoy.frac); cash += add; earned += add; convoy.frac -= add; }
+  convoy.envT -= dt;
+  if (convoy.envT <= 0) { convoy.envT = 90; rollNextEnv(); }
+  convoy.spawnT -= dt;
+  if (convoy.spawnT <= 0) {
+    const tier = Math.floor(elapsed / 45);
+    convoy.spawnT = Math.max(0.4, 1.7 * Math.pow(0.93, tier)) * sr(0.7, 1.3);
+    const table = [['hornet', 5], ['decoy', 2], ['geran', 3]];
+    if (tier >= 1) table.push(['viper', 4]);
+    if (tier >= 2) table.push(['wasp', 3]);
+    if (tier >= 3) table.push(['ghost', 2]);
+    if (tier >= 4) table.push(['specter', 2], ['mule', 2]);
+    if (tier >= 5) table.push(['haze', 1]);
+    if (tier >= 6) table.push(['hive', 1]);
+    let tot = 0;
+    for (const e2 of table) tot += e2[1];
+    let r = sr(0, tot), pick = table[0][0];
+    for (const e2 of table) { if ((r -= e2[1]) <= 0) { pick = e2[0]; break; } }
+    hpMul = (1 + tier * 0.08) * diffHp;
+    spdMul = Math.min(1.6, 1 + tier * 0.02) * diffSpd;
+    spawnEnemy(pick, ['left', 'top', 'bottom', 'right'][sri(0, 3)]);
+  }
+  if (elapsed >= convoy.boss) { // periodic heavy hunter
+    convoy.boss += 180;
+    spawnEnemy('kraken', ['left', 'right'][sri(0, 1)]);
+    radioMsg('FLASH: HEAVY UCAV VECTORING ON THE CONVOY');
+  }
+}
+function convoyOver() {
+  state = 'over';
+  const km = (elapsed * 32 / 1000).toFixed(1);
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const ss = String(Math.floor(elapsed % 60)).padStart(2, '0');
+  const ex = exchangeGrade();
+  el('doneTitle').innerHTML = '<span class="bad">CONVOY LOST</span>';
+  el('doneMsg').textContent = 'THE LINE GOES COLD AT KM ' + km;
+  el('doneStats').innerHTML =
+    'DISTANCE: <span>' + km + ' km</span> · TIME <span>' + mm + ':' + ss + '</span> · HOSTILES DOWN: <span>' + kills + '</span><br>' +
+    'COST EXCHANGE: <span>$' + destroyed + '</span> downed vs <span>$' + spent + '</span> expended = <span>' +
+    ex.r.toFixed(2) + ' : 1</span> — GRADE <span style="font-size:15px">' + ex.g + '</span>';
+  renderAAR();
+  el('lbWrap').style.display = 'none';
+  el('opWrap').style.display = 'none';
+  el('btnEndless').style.display = 'none';
+  el('btnGif').style.display = 'none';
+  el('btnReplay').style.display = 'none';
+  el('btnRestart').textContent = 'ROLL AGAIN';
+  el('btnToMenu').textContent = '⌂ MAIN MENU';
+  el('ovDone').classList.remove('hide');
+  sfx.boom(2);
+}
+function drawTrain() {
+  const y = 360;
+  ctx.strokeStyle = '#2a3a2e'; ctx.lineWidth = 6;
+  ctx.beginPath(); ctx.moveTo(0, y + 26); ctx.lineTo(W, y + 26); ctx.stroke();
+  ctx.strokeStyle = 'rgba(18,26,20,0.9)'; ctx.lineWidth = 2;
+  for (let x = ((-time * 140) % 40 + 40) % 40; x < W; x += 40) {
+    ctx.beginPath(); ctx.moveTo(x, y + 20); ctx.lineTo(x - 8, y + 32); ctx.stroke();
+  }
+  for (const sx of CV_SLOTS) { // flatcars
+    ctx.fillStyle = '#101a15'; ctx.strokeStyle = '#2c4033'; ctx.lineWidth = 1.5;
+    ctx.fillRect(sx - 34, y - 14, 68, 28); ctx.strokeRect(sx - 34, y - 14, 68, 28);
+    ctx.fillStyle = '#0a100d';
+    ctx.beginPath(); ctx.arc(sx - 20, y + 18, 6, 0, TAU); ctx.arc(sx + 20, y + 18, 6, 0, TAU); ctx.fill();
+  }
+  ctx.fillStyle = '#16241c'; ctx.strokeStyle = '#3f8f5f'; ctx.lineWidth = 2; // locomotive
+  ctx.fillRect(960, y - 22, 96, 44); ctx.strokeRect(960, y - 22, 96, 44);
+  ctx.fillStyle = '#3f8f5f'; ctx.font = 'bold 10px IBM Plex Mono'; ctx.textAlign = 'center';
+  ctx.fillText('AEGIS', 1008, y + 3);
+  if (placing || movingT) { // free hardpoints
+    CV_SLOTS.forEach((sx, i) => {
+      if (!slotFree(i)) return;
+      ctx.strokeStyle = 'rgba(95,216,255,0.7)'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.arc(sx, y, 17, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+    });
+  }
+  const dmgF = 1 - baseHP / baseMax;
+  if (dmgF > 0.02) { ctx.fillStyle = 'rgba(255,60,40,' + (dmgF * 0.25).toFixed(3) + ')'; ctx.fillRect(480, y - 24, 580, 52); }
 }
 
 /* ================= raid clip capture (animated GIF, zero deps) =================
@@ -4515,6 +5048,7 @@ function stepSim() {
   updProjs(SIM_DT);
   updBirds(SIM_DT);
   updFx(SIM_DT);
+  if (convoy && state === 'combat') convoyUpdate(SIM_DT);
   if (state === 'combat') { updWaves(SIM_DT); updEnemies(SIM_DT); }
   simStep++;
 }

@@ -48,21 +48,31 @@ Living document. Update as plans evolve (project rule: keep track of plans).
 - Skirmish balance is otherwise untouched. NOTE: environment on STANDARD+
   is a real (requested) balance change - existing leaderboard scores
   predate it. Version bumped to v0.9.
-- Raid mode economy:
-  - Procurement costs = the genEndless budget table (hornet 5, viper 8,
-    geran 12, decoy 2, wasp 14, ghost 18, specter 24, static 26, mule 25,
-    hive 50) + kraken 250. Sparrow excluded (recon has no role until
-    fog-of-war raids).
-  - Attacker budget = 250 + 1.1 x grid invested value (rounded to 10).
-  - Defender wallet (SAM ammo money) = 150 + 0.2 x grid value; defender
-    also earns bounties on kills mid-raid - draining their wallet with
-    decoys before sending heavies is intended tactics.
-  - Offense score: value inflicted = FOB damage x $5 (repair price/hp)
-    + invested value of destroyed generators + $300 breach bonus if the
-    FOB falls. RAID X-RATE = value inflicted / raid cost. Same letter
-    grades as defense.
-  - Attacker picks environment freely in the designer (vs AI; revisit for
-    PvP). No leaderboard for raid v1.
+- Raid mode = OPERATIONS (redesigned 2026-07-19 after "hundred vipers"
+  feedback; single unlimited strikes were degenerate):
+  - 5 strikes per operation (buy up to 2 more at $150 each). Breach the
+    FOB in any strike = victory; otherwise graded on operation X-RATE
+    (total inflicted / total spent, upgrades and unlocks included).
+  - Sortie cap: 12 airframes per strike; +6 per LAUNCH RAILS purchase
+    (cost 100 x 1.6^n rounded to 10). This is the mass limiter.
+  - Attacker wallet: starts 200 + 0.35 x grid value (round 10), carries
+    across strikes; income after each strike = $120 + 60% of value
+    inflicted that strike. Drones are paid for at launch - losses real.
+  - Drone unlocks (persist per operation): start hornet/geran/decoy;
+    viper 60, wasp 80, mule 90, ghost 100, specter 110, haze 120,
+    hive 150, kraken 400. Locked cards show the price; click to buy.
+  - Defender: wallet persists (bounties stay banked), +$100 stipend per
+    interphase; spends up to 60% of spendable on repairs at $5/hp, then
+    up to 3 reinforcement actions (40% upgrade an existing system, else
+    place a new one via weighted table + power checks), always keeping a
+    $150 ammo reserve. FOB integrity persists across strikes.
+  - Value inflicted per strike = integrity damage x $5 + destroyed
+    generators + $300 breach bonus. Same letter grades as defense.
+  - Procurement costs = the genEndless table + kraken 250; sparrow still
+    excluded (no recon role until fog-of-war raids).
+  - Mid-strike pause offers FAST-RESOLVE (skip ahead), never a redo.
+  - Manifests (SDR codes) carry over between strikes and re-trim to the
+    new budget/cap/locks. No leaderboard for raids yet.
 
 ## Open tuning questions
 

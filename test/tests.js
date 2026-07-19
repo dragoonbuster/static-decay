@@ -70,7 +70,8 @@ if (state === 'build') {
 raidSel.g = 'p1';
 enterRaidDesign(raidTargetSpec());
 T(state === 'rdesign' && gameMode === 'raid', 'raid designer opens');
-T(raid.budget > 0 && towers.length === PRESET_GRIDS[1].towers.length, 'firebase target built (budget $' + raid.budget + ')');
+T(raid.budget > 0 && raid.op.cap === 12 && raid.op.strike === 1 && towers.length === PRESET_GRIDS[1].towers.length, 'operation opens on firebase (budget $' + raid.budget + ')');
+raid.op.cap = 30; // determinism test flies a big mixed package
 raid.groups.push(
   { type: 'decoy', count: 8, edge: 'left', delay: 0, interval: 0.35 },
   { type: 'wasp', count: 3, edge: 'top', delay: 2, interval: 1.1 },
@@ -206,15 +207,43 @@ T(tut && tut.s === TUTR && state === 'rdesign' && gameMode === 'raid', 'raid tut
 tutAdvance(); tutAdvance(); // past the two intro NEXT steps
 addRaidGroup('hornet'); tutUpdate();
 T(tut.i === 3, 'raid tut advances on hornets');
+addRaidGroup('mule'); tutUpdate(); // locked: routes to tryUnlock
+T(tut.i === 4 && raid.op.unlocked.mule === 1, 'raid tut advances on mule unlock');
 addRaidGroup('mule'); tutUpdate();
-T(tut.i === 4, 'raid tut advances on mules');
+T(tut.i === 5, 'raid tut advances on mule group');
 tutAdvance(); // axis/timing NEXT
-addRaidGroup('wasp'); tutUpdate();
-T(tut.i === 6, 'raid tut advances on wasps');
 launchRaid(); tutUpdate();
 T(tut.i === 7, 'raid tut advances on launch');
 ff(400000); tutUpdate();
-T(state === 'rover' && tut === null, 'raid tut completes at assessment');
+T(state === 'rover' && tut === null, 'raid tut completes at the interphase');
+restartGame();
+
+/* operation economy */
+raidSel.g = 'p0';
+enterRaidDesign(raidTargetSpec());
+T(raid.op.strike === 1 && raid.op.cap === 12 && !raid.op.unlocked.viper && raid.op.unlocked.hornet === 1, 'operation starts thin: 12-cap, locked roster');
+{
+  const b0 = raid.budget;
+  tryUnlock('viper');
+  T(raid.op.unlocked.viper === 1 && raid.budget === b0 - 60, 'unlock spends budget');
+  const c1 = railCost(), b1 = raid.budget;
+  opBuy('rails');
+  T(raid.op.cap === 18 && raid.budget === b1 - c1, 'launch rails raise the cap');
+  raid.op.cap = 12; // back to baseline for the cap test
+  addRaidGroup('hornet'); addRaidGroup('hornet');
+  T(raidTotal() === 12 && raid.groups.length === 2, 'two hornet groups fill the cap');
+  addRaidGroup('hornet');
+  T(raidTotal() === 12 && raid.groups.length === 2, 'cap rejects a third group');
+  const bLaunch = raid.budget;
+  launchRaid();
+  T(state === 'combat' && raid.budget === bLaunch - raid.cost, 'launch deducts the package cost');
+  ff(400000);
+  T(state === 'rover' && raid.op.strike === 1 && !raid.op.over, 'strike 1 resolves, operation continues');
+  const v0 = raid.value;
+  nextStrike();
+  T(state === 'rdesign' && raid.op.strike === 2, 'interphase advances to strike 2');
+  T(raid.value > v0, 'defender reinforced between strikes ($' + v0 + ' -> $' + raid.value + ')');
+}
 restartGame();
 
 /* draggable manifest positioning */
@@ -244,10 +273,11 @@ raid.groups.push(
   let threw = false;
   try { decodeManifest('SDRjunkjunk'); } catch (e) { threw = true; }
   T(threw, 'manifest codec rejects garbage');
-  // budget trim: replay the same manifest on a tiny grid
+  // reload on a fresh op: locked designs drop, the rest trims to budget and cap
   enterRaidDesign(genGrid(700));
   applyManifest(decodeManifest(code));
-  T(raidCost() <= raid.budget && raid.night === true && raid.wx === 'FOG', 'manifest reload trims to the smaller budget ($' + raidCost() + ' of $' + raid.budget + ')');
+  T(raidCost() <= raid.budget && raidTotal() <= raid.op.cap && raid.night === true && raid.wx === 'FOG' &&
+    raid.groups.every(g => raid.op.unlocked[g.type]), 'manifest reload respects budget, cap and locks');
 }
 restartGame();
 

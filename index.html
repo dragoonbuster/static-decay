@@ -239,7 +239,7 @@
 </div>
 
 <header id="top">
-  <div id="brand">SIGNAL DECAY<small>COUNTER-UAS COMMAND · v0.9</small></div>
+  <div id="brand">SIGNAL DECAY<small>COUNTER-UAS COMMAND · v0.9.1</small></div>
   <div class="stat" id="hpWrap">
     <span class="lbl">FOB INTEGRITY</span>
     <div id="hpBar"><div id="hpFill"></div></div>
@@ -836,7 +836,7 @@ function feedbackAvailable() { const m = LB.detect(); return m === 'firebase' ||
 async function sendFeedback(text) {
   const entry = {
     t: String(text).slice(0, 500),
-    v: 'v0.9', mode: gameMode, diff: diffKey, wave,
+    v: 'v0.9.1', mode: gameMode, diff: diffKey, wave,
     out: state === 'won' ? 'won' : state === 'over' ? 'lost' : state === 'rover' ? 'raid' : state,
     xr: spent > 0 ? Math.round(destroyed / spent * 100) / 100 : 0,
     ts: Date.now(),

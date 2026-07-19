@@ -1,4 +1,4 @@
-# SIGNAL DECAY — Deployment Guide (v0.9)
+# SIGNAL DECAY — Deployment Guide (v0.9.1)
 
 The game is a single self-contained HTML file with no build step, no assets,
 and no server code. Anything that can serve a static file can serve this game

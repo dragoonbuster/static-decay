@@ -217,6 +217,14 @@ ff(400000); tutUpdate();
 T(state === 'rover' && tut === null, 'raid tut completes at assessment');
 restartGame();
 
+/* draggable manifest positioning */
+enterRaidDesign(PRESET_GRIDS[0]);
+T(maniPos && maniPos.x > 4 && maniPos.y > 4, 'manifest starts centered on a fresh target');
+maniPos.x = -500; maniPos.y = 99999;
+positionManifest();
+T(maniPos.x >= 4 && maniPos.y >= 4 && maniPos.x <= 1280 && maniPos.y <= 720, 'manifest clamped to the stage');
+restartGame();
+
 /* strike-manifest codec */
 raidSel.g = 'p1';
 enterRaidDesign(raidTargetSpec());

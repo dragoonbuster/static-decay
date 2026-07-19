@@ -206,6 +206,7 @@
     padding:10px 12px; display:flex; flex-direction:column; gap:5px;
     box-shadow:0 0 22px rgba(0,0,0,.55)}
   #detail.hide{display:none}
+  #detail.draggable #dName{cursor:move; user-select:none}
   #dName{font-family:var(--font-d); font-weight:700; font-size:14px; letter-spacing:.06em; color:var(--phos)}
   #dName span{color:var(--dim); font-size:11px}
   #dStats{font-size:var(--fs-detail); color:var(--ink); line-height:1.45; white-space:pre-line; flex:1; overflow-y:auto; max-height:300px}
@@ -3147,6 +3148,9 @@ function refreshDetail() {
   el('dRow').style.display = '';
   el('dStats').style.overflowY = '';
   const d = el('detail');
+  d.classList.remove('draggable'); // skirmish panel is fixed bottom-right (CSS)
+  d.style.left = d.style.top = d.style.right = d.style.bottom = '';
+  el('dName').title = '';
   if (multiSel) {
     multiSel = multiSel.filter(t2 => towers.includes(t2));
     if (multiSel.length < 2) { sel = multiSel[0] || sel; multiSel = null; }
@@ -3840,6 +3844,18 @@ el('dMode').addEventListener('click', cycleMode);
 el('dSell').addEventListener('click', doSell);
 el('dEmcon').addEventListener('click', toggleEmcon);
 el('dMove').addEventListener('click', startMove);
+el('dName').addEventListener('pointerdown', ev => {
+  if (gameMode !== 'raid' || state !== 'rdesign' || !maniPos) return;
+  maniDrag = { dx: maniPos.x - ev.clientX, dy: maniPos.y - ev.clientY };
+  ev.preventDefault();
+});
+document.addEventListener('pointermove', ev => {
+  if (!maniDrag) return;
+  maniPos.x = maniDrag.dx + ev.clientX;
+  maniPos.y = maniDrag.dy + ev.clientY;
+  positionManifest();
+});
+document.addEventListener('pointerup', () => { maniDrag = null; });
 el('dOvr').addEventListener('click', () => {
   if (!sel || sel.k !== 'optic') return;
   toggleOvrT(sel);
@@ -3980,6 +3996,7 @@ function enterRaidDesign(spec) {
   applyDiff();
   buildDefense(spec);
   const value = towers.reduce((a, t) => a + t.invested, 0);
+  maniPos = null; // fresh target: manifest re-centers
   raid = {
     spec, value,
     budget: Math.round((250 + 1.1 * value) / 10) * 10,
@@ -4058,12 +4075,27 @@ function raidGroupOp(i, op, btn) {
   else if (op === 'del') raid.groups.splice(i, 1);
   updateRaidPanel(); sfx.click();
 }
+let maniPos = null, maniDrag = null;
+function positionManifest() { // keep the draggable manifest fully on the stage
+  const d = el('detail'), st = el('stage');
+  const sw = st.clientWidth || 1280, sh = st.clientHeight || 720;
+  const w = d.offsetWidth || 300, h = d.offsetHeight || 220;
+  if (!maniPos) maniPos = { x: (sw - w) / 2, y: (sh - h) / 2 };
+  maniPos.x = clamp(maniPos.x, 4, Math.max(4, sw - w - 4));
+  maniPos.y = clamp(maniPos.y, 4, Math.max(4, sh - h - 4));
+  d.style.left = maniPos.x + 'px';
+  d.style.top = maniPos.y + 'px';
+  d.style.right = 'auto';
+  d.style.bottom = 'auto';
+}
 function updateRaidPanel() {
   if (gameMode !== 'raid' || state !== 'rdesign' || !raid) return;
   const d = el('detail');
   d.classList.remove('hide');
+  d.classList.add('draggable');
   el('dRow').style.display = 'none';
   el('dPrio').style.display = 'none';
+  el('dName').title = 'Drag to move this panel';
   el('dName').innerHTML = 'RAID MANIFEST <span>$' + raidCost() + ' / $' + raid.budget + '</span>';
   const AXL = { left: 'W', top: 'N', bottom: 'S' };
   let html = '';
@@ -4089,6 +4121,7 @@ function updateRaidPanel() {
   const ds = el('dStats');
   ds.style.overflowY = 'auto';
   ds.innerHTML = html;
+  positionManifest();
   refreshShop();
 }
 function launchRaid() {

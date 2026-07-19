@@ -217,6 +217,32 @@ ff(400000); tutUpdate();
 T(state === 'rover' && tut === null, 'raid tut completes at assessment');
 restartGame();
 
+/* strike-manifest codec */
+raidSel.g = 'p1';
+enterRaidDesign(raidTargetSpec());
+raid.night = true; raid.wx = 'FOG';
+raid.groups.push(
+  { type: 'hornet', count: 12, edge: 'left', delay: 0, interval: 0.35 },
+  { type: 'wasp', count: 3, edge: 'top', delay: 8, interval: 1.1 },
+  { type: 'kraken', count: 1, edge: 'bottom', delay: 20, interval: 1.1 });
+{
+  const code = encodeManifest();
+  T(code.startsWith('SDR'), 'manifest code has SDR prefix (' + code + ')');
+  const m = decodeManifest(code);
+  T(m.night === true && m.wx === 'FOG' && m.groups.length === 3 &&
+    m.groups[2].type === 'kraken' && m.groups[2].delay === 20 && m.groups[1].edge === 'top' &&
+    m.groups[0].count === 12 && m.groups[0].interval === 0.35,
+    'manifest codec round-trips groups and conditions');
+  let threw = false;
+  try { decodeManifest('SDRjunkjunk'); } catch (e) { threw = true; }
+  T(threw, 'manifest codec rejects garbage');
+  // budget trim: replay the same manifest on a tiny grid
+  enterRaidDesign(genGrid(700));
+  applyManifest(decodeManifest(code));
+  T(raidCost() <= raid.budget && raid.night === true && raid.wx === 'FOG', 'manifest reload trims to the smaller budget ($' + raidCost() + ' of $' + raid.budget + ')');
+}
+restartGame();
+
 /* auto-launch */
 diffKey = 'ez'; restartGame();
 placeTower('vulcan', 1000, 300); placeTower('vulcan', 1000, 420); placeTower('radar', 950, 360);

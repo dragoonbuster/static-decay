@@ -79,10 +79,10 @@
   .btn.on{border-color:var(--phos); color:var(--phos); background:#10241a; box-shadow:0 0 10px rgba(125,255,171,.2)}
   #btnSave{font-family:var(--font-m); font-size:11px; letter-spacing:0; text-transform:none; color:var(--cyan); display:none}
   #btnSave:hover{border-color:var(--cyan)}
-  #loadCode,#raidCode{flex:1; background:#08100b; border:1px solid var(--line2); color:var(--phos);
+  #loadCode,#raidCode,#maniCode{flex:1; background:#08100b; border:1px solid var(--line2); color:var(--phos);
     font-family:var(--font-m); font-size:11px; padding:7px 9px; letter-spacing:.03em; min-width:0}
-  #loadCode::placeholder,#raidCode::placeholder{color:var(--dim)}
-  #loadCode:focus,#raidCode:focus{outline:none; border-color:var(--phos-dim)}
+  #loadCode::placeholder,#raidCode::placeholder,#maniCode::placeholder{color:var(--dim)}
+  #loadCode:focus,#raidCode:focus,#maniCode:focus{outline:none; border-color:var(--phos-dim)}
   .rbtn{padding:2px 7px !important; font-size:10px !important; letter-spacing:0 !important}
   .btn.mini{font-size:11px; padding:5px 10px; letter-spacing:.08em; color:var(--dim)}
   .btn.mini:hover{color:var(--phos)}
@@ -101,6 +101,14 @@
   .cdx{display:flex; gap:10px; align-items:flex-start; font-size:11.5px; line-height:1.5;
     color:var(--dim); margin-bottom:11px; border-left:2px solid var(--line2); padding-left:10px}
   .cdx canvas{flex:0 0 40px; width:40px; height:40px; margin-top:2px}
+  #ovTutPick small{display:block; font-family:var(--font-m); font-size:9px; letter-spacing:.06em;
+    color:var(--dim); text-transform:none; margin-top:4px}
+  /* compact icon-first cards */
+  #shop.compact .card{width:112px; flex:0 0 112px; text-align:center}
+  #shop.compact .card .ds{display:none}
+  #shop.compact .chead{flex-direction:column; gap:4px; align-items:center}
+  #shop.compact .card .cico{flex:0 0 auto; width:80px; height:80px}
+  #shop.compact .card .nm{font-size:12px; line-height:1.1}
   .cdx b{font-family:var(--font-d); font-size:13px; letter-spacing:.08em; color:var(--phos)}
   .cdx .meta{color:var(--amber); font-size:10.5px; margin-left:8px}
   .hlp{font-size:12px; line-height:1.55; color:var(--ink); margin-bottom:12px}
@@ -319,9 +327,11 @@
         <button class="btn" data-wx="FOG">FOG</button>
       </div>
       <div id="raidInfo" style="font-size:10.5px;color:var(--dim);line-height:1.5;min-height:30px;margin-bottom:10px">Autocannon wall behind a radar picket. Thin against armor and high altitude.</div>
-      <div class="ovrow" style="align-items:center">
+      <div class="ovrow" style="margin-bottom:8px">
+        <input id="maniCode" placeholder="optional: paste a saved strike manifest (SDR…) to refly it here" spellcheck="false" autocomplete="off">
+      </div>
+      <div class="ovrow">
         <button class="btn primary" id="btnRaidStart" style="font-size:16px;padding:10px 26px">OPEN RAID DESIGNER</button>
-        <button class="btn mini" id="btnRaidTut">RAID TUTORIAL</button>
       </div>
       </div>
     </div>
@@ -334,6 +344,7 @@
       <div class="ovrow" style="flex-direction:column;align-items:stretch;gap:8px">
         <button class="btn primary" id="btnResume">▶ RESUME</button>
         <button class="btn" id="btnPauseSave" style="font-family:var(--font-m);text-transform:none;letter-spacing:0">⎘ COPY CHECKPOINT</button>
+        <button class="btn" id="btnPauseControls">CONTROLS</button>
         <button class="btn" id="btnPauseCodex">DATABASE</button>
         <button class="btn" id="btnPauseSettings">SETTINGS</button>
         <button class="btn" id="btnPauseFeedback">FEEDBACK</button>
@@ -397,6 +408,43 @@
         <button class="btn" data-v="on">ON</button>
       </div>
       <div class="ovrow"><button class="btn primary" id="btnSettingsBack">BACK</button></div>
+    </div>
+  </div>
+
+  <div class="ov hide" id="ovControls">
+    <div class="ovbox" style="max-width:580px;max-height:84vh;overflow-y:auto">
+      <h1 style="font-size:26px">CONTROLS</h1>
+      <div class="sub" style="margin-bottom:14px">MOUSE AND KEYBOARD REFERENCE</div>
+      <div class="hlp"><b>MOUSE</b>
+        <span class="k">CLICK</span> a shop card, then <span class="k">CLICK</span> the field to place it · <span class="k">SHIFT+CLICK</span> keeps placing more<br>
+        <span class="k">CLICK</span> a placed system to select it — its control panel opens bottom-right<br>
+        <span class="k">DRAG</span> on open ground to box-select a group; TGT and PRIORITY then apply to all of them<br>
+        <span class="k">RIGHT-CLICK</span> cancels placement and clears selection · <span class="k">HOVER</span> any system to see its range</div>
+      <div class="hlp"><b>SYSTEM ORDERS — WITH A SYSTEM SELECTED</b>
+        <span class="k">U</span> upgrade to MK-2 / MK-3 · <span class="k">T</span> cycle targeting: nearest / closest to FOB / strongest / weakest<br>
+        <span class="k">M</span> move, then click the new spot (~10% of value, between waves only) · <span class="k">X</span> sell for 70%<br>
+        <span class="k">E</span> EMCON — silence a radar/jammer/SAM so Wasps cannot home on it<br>
+        <span class="k">OVR</span> on an ORACLE optic forces every linked weapon onto its chosen priority</div>
+      <div class="hlp"><b>FLOW</b>
+        <span class="k">SPACE</span> launches the wave; mid-fight it pauses · <span class="k">F</span> toggles 2x speed · <span class="k">P</span> pause<br>
+        <span class="k">R</span> repairs the FOB +10 for $50 between waves · the <span class="k">AUTO</span> button self-launches waves<br>
+        <span class="k">1-9</span> pick shop cards · <span class="k">G</span> toggles grid-lock snapping · <span class="k">ESC</span> cancels anything</div>
+      <div class="hlp"><b>RAID DESIGNER</b>
+        <span class="k">CLICK</span> airframe cards to add strike groups · row buttons: <span class="k">+/-</span> count, <span class="k">W/N/S</span> axis, <span class="k">+Ns</span> launch delay<br>
+        <span class="k">SPACE</span> launches the raid · <span class="k">COPY</span> saves the manifest as an SDR code you can refly on any grid</div>
+      <div class="ovrow"><button class="btn primary" id="btnControlsBack">BACK</button></div>
+    </div>
+  </div>
+
+  <div class="ov hide" id="ovTutPick">
+    <div class="ovbox" style="max-width:440px">
+      <h1 style="font-size:26px">TUTORIAL</h1>
+      <div class="sub" style="margin-bottom:14px">PICK YOUR SEAT</div>
+      <div class="ovrow" style="flex-direction:column;align-items:stretch;gap:10px">
+        <button class="btn primary" id="btnTutDef" style="padding:12px">DEFEND — SKIRMISH BASICS<small>guns, sensors, power, the exchange — five guided waves</small></button>
+        <button class="btn" id="btnTutAtk" style="padding:12px">ATTACK — RAID DESIGN<small>compose a strike package and break a gun line</small></button>
+        <button class="btn" id="btnTutCancel">CANCEL</button>
+      </div>
     </div>
   </div>
 
@@ -524,6 +572,7 @@
 </div>
 
 <footer id="bottom">
+  <button class="btn mini" id="btnCards" title="Card style: full text, or icon-first compact cards (descriptions stay on the hover tooltip)" style="flex:0 0 auto;align-self:stretch">FULL</button>
   <div id="shop"></div>
 </footer>
 
@@ -562,7 +611,7 @@ const sri = (a, b) => Math.floor(sr(a, b + 1));
 
 /* ---------- settings (device-local, cosmetic/audio only — never sim) ---------- */
 const SETTINGS_KEY = 'ip_settings';
-const settings = { text: 100, cardw: 100, hud: 100, vol: 50, radio: 'full', shake: true, scan: true, snap: false, auto: 'off' };
+const settings = { text: 100, cardw: 100, hud: 100, vol: 50, radio: 'full', shake: true, scan: true, snap: false, auto: 'off', cards: 'full' };
 let settingsOpen = false;
 function saveSettings() {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { }
@@ -615,6 +664,33 @@ function closeHelp() {
   helpOpen = false;
   el('ovHelp').classList.add('hide');
   if (state === 'menu') el('ovMenu').classList.remove('hide');
+}
+
+/* ---------- controls + tutorial-picker overlays ---------- */
+let controlsOpen = false, tutPickOpen = false;
+function openControls() {
+  controlsOpen = true;
+  el('ovPause').classList.add('hide');
+  el('ovControls').classList.remove('hide');
+}
+function closeControls() {
+  controlsOpen = false;
+  el('ovControls').classList.add('hide');
+  if (paused) el('ovPause').classList.remove('hide');
+}
+function openTutPick() {
+  tutPickOpen = true;
+  el('ovMenu').classList.add('hide');
+  el('ovTutPick').classList.remove('hide');
+}
+function closeTutPick(toMenu) {
+  tutPickOpen = false;
+  el('ovTutPick').classList.add('hide');
+  if (toMenu) el('ovMenu').classList.remove('hide');
+}
+function applyCards() {
+  el('shop').classList.toggle('compact', settings.cards === 'compact');
+  el('btnCards').textContent = settings.cards === 'compact' ? 'ICON' : 'FULL';
 }
 
 /* ---------- database / codex overlay ---------- */
@@ -2882,8 +2958,9 @@ function copyCheckpoint() {
 function paintSysIcon(cv2, k) {
   if (!cv2 || !cv2.getContext) return;
   const c = cv2.getContext('2d');
-  c.clearRect(0, 0, 40, 40);
-  c.save(); c.translate(20, 20); c.scale(1.5, 1.5);
+  const S = (cv2.width || 40) / 40; // painters think in 40x40; canvas may be sharper
+  c.clearRect(0, 0, cv2.width, cv2.height);
+  c.save(); c.scale(S, S); c.translate(20, 20); c.scale(1.5, 1.5);
   c.fillStyle = '#101a15'; c.strokeStyle = '#2c4033'; c.lineWidth = 1;
   c.beginPath(); c.arc(0, 0, 11, 0, TAU); c.fill(); c.stroke();
   switch (TT[k].kind) {
@@ -2948,8 +3025,9 @@ function paintUasIcon(cv2, k) {
   if (!cv2 || !cv2.getContext) return;
   const d = ETYPES[k];
   const c = cv2.getContext('2d');
-  c.clearRect(0, 0, 40, 40);
-  c.save(); c.translate(20, 20);
+  const S = (cv2.width || 40) / 40;
+  c.clearRect(0, 0, cv2.width, cv2.height);
+  c.save(); c.scale(S, S); c.translate(20, 20);
   const s = clamp(13 / d.r, 0.55, 1.5);
   c.scale(s, s);
   c.strokeStyle = d.color; c.fillStyle = '#121a15'; c.lineWidth = 1.6 / s;
@@ -2988,7 +3066,7 @@ function buildShop() {
       c.className = 'card'; c.dataset.k = k;
       c.title = d.brief;
       c.innerHTML = '<span class="hk">' + (i < 9 ? i + 1 : i === 9 ? 0 : '') + '</span>' +
-        '<div class="chead"><canvas class="cico" width="40" height="40"></canvas><div>' +
+        '<div class="chead"><canvas class="cico" width="80" height="80"></canvas><div>' +
         '<div class="nm" style="color:' + d.color + '">' + d.name + '</div>' +
         '<div class="cost">' + fmt$(PCOST[k]) + ' <span style="color:var(--dim)">each</span></div></div></div>' +
         '<div class="ds">' + d.brief + '</div>';
@@ -3006,7 +3084,7 @@ function buildShop() {
     const pwr = d.draw > 0 ? ' <span style="color:var(--cyan)">⚡' + d.draw + '</span>'
       : d.pwr ? ' <span style="color:var(--cyan)">+' + d.pwr + '⚡</span>' : '';
     c.innerHTML = '<span class="hk">' + (i + 1) + '</span>' +
-      '<div class="chead"><canvas class="cico" width="40" height="40"></canvas><div>' +
+      '<div class="chead"><canvas class="cico" width="80" height="80"></canvas><div>' +
       '<div class="nm">' + d.name + '</div>' +
       '<div class="cost">' + fmt$(d.cost) + pwr + (d.ammoCost ? ' <span style="color:var(--dim)">+$' + d.ammoCost + '/shot</span>' : '') + '</div></div></div>' +
       '<div class="ds">' + d.ds + '</div>';
@@ -3471,7 +3549,7 @@ document.addEventListener('keydown', ev => {
     if (ev.key === 'Enter' && tag === 'INPUT') {
       ev.preventDefault();
       if (ev.target.id === 'loadCode') el('btnLoad').click();
-      if (ev.target.id === 'raidCode') el('btnRaidStart').click();
+      if (ev.target.id === 'raidCode' || ev.target.id === 'maniCode') el('btnRaidStart').click();
       if (ev.target.id === 'lbName') submitScore();
     }
     if (ev.key === 'Escape' && feedbackOpen) closeFeedback();
@@ -3481,6 +3559,8 @@ document.addEventListener('keydown', ev => {
   if (feedbackOpen) { if (ev.key === 'Escape') closeFeedback(); return; }
   if (helpOpen) { if (ev.key === 'Escape') closeHelp(); return; }
   if (codexOpen) { if (ev.key === 'Escape') closeCodex(); return; }
+  if (controlsOpen) { if (ev.key === 'Escape') closeControls(); return; }
+  if (tutPickOpen) { if (ev.key === 'Escape') closeTutPick(true); return; }
   if (state === 'menu') { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); el('btnStart').click(); } return; }
   if (state === 'over' || state === 'won' || state === 'rover') return;
   const k = ev.key.toLowerCase();
@@ -3555,9 +3635,17 @@ document.querySelectorAll('#cdxTabs .btn').forEach(b => {
     sfx.click();
   });
 });
-el('btnTutorial').addEventListener('click', () => { initAudio(); if (AC && AC.state === 'suspended') AC.resume(); startTutorial(); });
+el('btnTutorial').addEventListener('click', () => { openTutPick(); sfx.click(); });
+el('btnTutDef').addEventListener('click', () => { initAudio(); if (AC && AC.state === 'suspended') AC.resume(); closeTutPick(false); startTutorial(); });
+el('btnTutAtk').addEventListener('click', () => { initAudio(); if (AC && AC.state === 'suspended') AC.resume(); closeTutPick(false); startRaidTutorial(); });
+el('btnTutCancel').addEventListener('click', () => { closeTutPick(true); sfx.click(); });
+el('btnPauseControls').addEventListener('click', () => { openControls(); sfx.click(); });
+el('btnControlsBack').addEventListener('click', () => { closeControls(); sfx.click(); });
+el('btnCards').addEventListener('click', () => {
+  settings.cards = settings.cards === 'compact' ? 'full' : 'compact';
+  saveSettings(); applyCards(); sfx.click();
+});
 el('btnTutNext').addEventListener('click', () => { if (tut && tut.s[tut.i].next) { tutAdvance(); sfx.click(); } });
-el('btnRaidTut').addEventListener('click', () => { initAudio(); if (AC && AC.state === 'suspended') AC.resume(); startRaidTutorial(); });
 el('btnTutSkip').addEventListener('click', () => { endTutorial(false); sfx.click(); });
 el('btnMenuFeedback').addEventListener('click', () => { openFeedback('ovMenu'); sfx.click(); });
 el('btnPauseFeedback').addEventListener('click', () => { openFeedback('ovPause'); sfx.click(); });
@@ -3703,16 +3791,25 @@ document.querySelectorAll('#tabRaid [data-wx]').forEach(b => {
 });
 el('btnRaidStart').addEventListener('click', () => {
   initAudio(); if (AC && AC.state === 'suspended') AC.resume();
-  try { enterRaidDesign(raidTargetSpec()); sfx.horn(); }
+  let spec;
+  try { spec = raidTargetSpec(); }
   catch (e) {
     el('raidInfo').innerHTML = '<span style="color:var(--red)">CODE REJECTED — paste a valid SD1 defense checkpoint.</span>';
     sfx.deny();
+    return;
   }
+  enterRaidDesign(spec);
+  const mc = el('maniCode').value.trim();
+  if (mc) {
+    try { applyManifest(decodeManifest(mc)); }
+    catch (e) { el('nextwave').innerHTML = '<b>MANIFEST REJECTED</b> — bad SDR code; starting with an empty manifest.'; }
+  }
+  sfx.horn();
 });
 el('dStats').addEventListener('click', ev => {
   const b = ev.target.closest('.rbtn');
   if (!b || gameMode !== 'raid') return;
-  raidGroupOp(b.dataset.i === undefined ? -1 : +b.dataset.i, b.dataset.op);
+  raidGroupOp(b.dataset.i === undefined ? -1 : +b.dataset.i, b.dataset.op, b);
 });
 el('diffDesc').textContent = DIFFS.std.desc;
 function applyDiff() {
@@ -3806,6 +3903,62 @@ function buildDefense(spec) {
   }
   baseHP = baseMax;
 }
+/* Strike-manifest codec: groups + conditions as a shareable "SDR..." code,
+   so one package can be re-flown against any grid. Same b62 + checksum
+   machinery as SD1 checkpoints. */
+function encodeManifest() {
+  let v = 0n, sh = 0n;
+  const put = (val, w) => {
+    const m = (1 << w) - 1;
+    v |= BigInt(Math.max(0, Math.min(m, Math.round(val)))) << sh;
+    sh += BigInt(w);
+  };
+  put(raid.night ? 1 : 0, 1);
+  put(Math.max(0, ['CLEAR', 'RAIN', 'FOG'].indexOf(raid.wx)), 2);
+  put(raid.groups.length, 4);
+  for (const g of raid.groups) {
+    put(RKEYS.indexOf(g.type), 4);
+    put(Math.min(g.count, 127), 7);
+    put(['left', 'top', 'bottom'].indexOf(g.edge), 2);
+    put(Math.round(g.delay / 4), 3);
+  }
+  const payload = b62enc(v);
+  return 'SDR' + payload + cksum(payload);
+}
+function decodeManifest(code) {
+  code = (code || '').trim();
+  if (!code.startsWith('SDR') || code.length < 6) throw new Error('format');
+  const payload = code.slice(3, -2);
+  if (cksum(payload) !== code.slice(-2)) throw new Error('checksum');
+  let v = b62dec(payload);
+  const get = w => { const m = (1n << BigInt(w)) - 1n; const r = Number(v & m); v >>= BigInt(w); return r; };
+  const m = { night: !!get(1), wx: ['CLEAR', 'RAIN', 'FOG'][get(2)] || 'CLEAR', groups: [] };
+  const n = get(4);
+  if (n > 10) throw new Error('data');
+  for (let i = 0; i < n; i++) {
+    const ti = get(4), count = get(7), ei = get(2), dl = get(3) * 4;
+    if (ti >= RKEYS.length || count < 1 || ei > 2 || dl > 20) throw new Error('data');
+    const ty = RKEYS[ti];
+    m.groups.push({ type: ty, count, edge: ['left', 'top', 'bottom'][ei], delay: dl,
+      interval: (ty === 'hornet' || ty === 'viper' || ty === 'decoy') ? 0.35 : 1.1 });
+  }
+  return m;
+}
+function applyManifest(m) { // trims groups that outspend the current grid's budget
+  raid.night = m.night; raid.wx = m.wx;
+  env = computeEnv(m.night, m.wx);
+  nextEnv = { night: m.night, wx: m.wx };
+  raid.groups = [];
+  let dropped = 0;
+  for (const g of m.groups) {
+    const gg = { ...g };
+    while (gg.count > 0 && raidCost() + PCOST[gg.type] * gg.count > raid.budget) gg.count--;
+    if (gg.count > 0) raid.groups.push(gg); else dropped++;
+  }
+  updateRaidPanel();
+  el('nextwave').innerHTML = '<b>MANIFEST LOADED</b> — $' + raidCost() + ' of $' + raid.budget + ' committed' +
+    (dropped ? ' · <span style="color:var(--red)">' + dropped + ' group(s) dropped — over budget here</span>' : '');
+}
 function raidTargetSpec() {
   const g = raidSel.g;
   if (g === 'code') {
@@ -3879,7 +4032,7 @@ function addRaidGroup(ty) {
     interval: (ty === 'hornet' || ty === 'viper' || ty === 'decoy') ? 0.35 : 1.1 });
   updateRaidPanel(); sfx.click();
 }
-function raidGroupOp(i, op) {
+function raidGroupOp(i, op, btn) {
   if (state !== 'rdesign' || !raid) return;
   if (op === 'menu') { // abort planning, nothing to lose but the manifest
     paused = false;
@@ -3887,6 +4040,11 @@ function raidGroupOp(i, op) {
     el('ovMenu').classList.remove('hide');
     refreshOperators();
     sfx.click();
+    return;
+  }
+  if (op === 'copy') {
+    if (!raid.groups.length) { sfx.deny(); return; }
+    copyText(encodeManifest(), btn || el('nextwave'), 'COPY');
     return;
   }
   if (op === 'launch') { launchRaid(); return; }
@@ -3925,6 +4083,7 @@ function updateRaidPanel() {
   });
   html += '<div style="display:flex;gap:6px;margin-top:6px">' +
     '<button class="btn primary rbtn" data-op="launch" style="flex:1;padding:5px">LAUNCH RAID</button>' +
+    '<button class="btn rbtn" data-op="copy" title="Copy this manifest as an SDR code — paste it on the ATTACK tab to fly the same package against any other grid">COPY</button>' +
     '<button class="btn rbtn" data-op="clear">CLEAR</button>' +
     '<button class="btn rbtn" data-op="menu" title="Abort planning — back to the main menu">MENU</button></div>';
   const ds = el('dStats');
@@ -4036,6 +4195,7 @@ function frame(now) {
 loadSettings();
 el('btnAuto').textContent = autoLabel();
 el('btnAuto').classList.toggle('on', settings.auto !== 'off');
+applyCards();
 buildCodex();
 setInterval(presenceBeat, 60000);
 setInterval(() => { if (state === 'menu') refreshOperators(); }, 45000);

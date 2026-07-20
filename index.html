@@ -360,7 +360,8 @@
       flatcars, generator mounts on the locomotive, and the PAYLOAD car in the middle
       is the thing they are coming for — from every bearing, without pause, ramping
       forever. Repairs happen on the move, supply pays a trickle, and the run ends
-      one way. Score is distance.</p>
+      one way. Hardpoints are few, but upgrades never stop — marks climb past MK-3.
+      Score is distance.</p>
       <div class="ovrow" style="margin-bottom:10px"><button class="btn primary" id="btnConvoyStart" style="font-size:16px;padding:10px 26px">ROLL OUT</button></div>
       <div class="sub">uses the THREAT LEVEL selected on the DEFEND tab</div>
       </div>
@@ -1136,7 +1137,12 @@ const TT = {
   gen:    { name: 'GENERATOR', cost: 110, range: 0, covR: 190, kind: 'gen', draw: 0, pwr: 5,
     ds: 'Field generator: +5 grid power. The FOB supplies 8 — every system draws from the grid.' },
 };
-function upCost(t) { const b = TT[t.k].cost; return Math.round(b * (t.level === 1 ? 1.0 : 1.6) / 5) * 5; }
+function upCost(t) { // 1.0x, 1.6x (unchanged), then x1.4 per mark for convoy's open-ended upgrades
+  const b = TT[t.k].cost;
+  const m = t.level === 1 ? 1.0 : 1.6 * Math.pow(1.4, t.level - 2);
+  return Math.round(b * m / 5) * 5;
+}
+const maxLvl = () => convoy ? 99 : 3; // the train grows in depth, not breadth
 function moveCost(t) { return Math.max(5, Math.round(t.invested * 0.10 / 5) * 5); } // redeploy at ~10% of value vs the 30% sell haircut
 function powerCap() { let p = 8; for (const t of towers) if (t.k === 'gen') p += TT.gen.pwr; return p; }
 function powerUsed() { let p = 0; for (const t of towers) p += (t.emcon ? 0 : TT[t.k].draw); return p; }
@@ -1147,11 +1153,11 @@ function applyStats(t) {
     case 'vulcan': t.dmg = d.dmg + 2 * L; t.rof = d.rof + 1.7 * L; break;
     case 'sam': t.dmg = d.dmg + 22 * L; t.aoe = d.aoe + 5 * L; t.cdMax = d.cd * Math.pow(0.86, L); t.ammoCost = d.ammoCost; break;
     case 'laser': t.dpsMin = d.dpsMin * (1 + 0.3 * L); t.dpsMax = d.dpsMax * (1 + 0.4 * L); t.heatMax = d.heatMax + 1.1 * L; t.rampT = d.ramp; break;
-    case 'pulse': t.dmg = d.dmg + 9 * L; t.cdMax = d.cd - 0.8 * L; break;
-    case 'jammer': t.slow = d.slow + 0.11 * L; break;
+    case 'pulse': t.dmg = d.dmg + 9 * L; t.cdMax = Math.max(0.6, d.cd - 0.8 * L); break;
+    case 'jammer': t.slow = Math.min(0.85, d.slow + 0.11 * L); break;
     case 'falcon': t.dmg = d.dmg + 16 * L; t.cap = d.cap + (t.level >= 3 ? 1 : 0); t.rebuild = d.rebuild * Math.pow(0.82, L); break;
     case 'radar': t.buffMul = d.buff + 0.06 * L; break;
-    case 'optic': t.dmgBuff = [0, 0.08, 0.15][L]; break;
+    case 'optic': t.dmgBuff = L === 0 ? 0 : L === 1 ? 0.08 : 0.15 + 0.05 * (L - 2); break;
     case 'gen': break;
   }
 }
@@ -2379,9 +2385,14 @@ function drawTower(t, isSel) {
       ctx.fillText('OFFLINE ' + Math.ceil(t.offlineT), t.x, t.y - 22);
     }
   }
-  // level pips
+  // level pips — MK-4+ shows the number where the first pip sat
   ctx.fillStyle = '#ffb454';
-  for (let i = 0; i < t.level; i++) ctx.fillRect(t.x - 7 + i * 5, t.y + 18, 3, 3);
+  if (t.level <= 3) {
+    for (let i = 0; i < t.level; i++) ctx.fillRect(t.x - 7 + i * 5, t.y + 18, 3, 3);
+  } else {
+    ctx.font = 'bold 9px IBM Plex Mono'; ctx.textAlign = 'left';
+    ctx.fillText(String(t.level), t.x - 7, t.y + 22);
+  }
   // heat / stock / dry indicators
   if (t.kind === 'laser') {
     const f = clamp(t.heat / t.heatMax, 0, 1);
@@ -3374,7 +3385,7 @@ function refreshDetail() {
   el('dStats').textContent = statLine(t);
   const up = el('dUp');
   up.style.display = t.k === 'gen' ? 'none' : '';
-  if (t.level >= 3) { up.textContent = 'MAX LEVEL'; up.disabled = true; }
+  if (t.level >= maxLvl()) { up.textContent = 'MAX LEVEL'; up.disabled = true; }
   else { const c = upCost(t); up.textContent = 'UPGRADE ' + fmt$(c); up.disabled = cash < c; }
   const showMode = (t.kind === 'gun' || t.kind === 'sam' || t.kind === 'laser');
   el('dMode').style.display = showMode ? '' : 'none';
@@ -3514,7 +3525,7 @@ function applyAction(a) {
 }
 
 function doUpgrade() {
-  if (!sel || sel.level >= 3 || sel.k === 'gen') return;
+  if (!sel || sel.level >= maxLvl() || sel.k === 'gen') return;
   if (cash < upCost(sel)) { sfx.deny(); return; }
   upgradeTower(sel);
   sfx.cash(); refreshDetail();
@@ -3844,7 +3855,7 @@ function togglePause() {
       : state === 'combat'
         ? 'WAVE ' + wave + ' IN PROGRESS — checkpoint = as launched'
         : 'BUILD PHASE — checkpoint = current state';
-    el('btnPauseSave').style.display = gameMode === 'raid' ? 'none' : '';
+    el('btnPauseSave').style.display = (gameMode === 'raid' || convoy || theater) ? 'none' : '';
     el('btnPauseRestart').textContent = gameMode === 'raid' ? 'FAST-RESOLVE STRIKE' : '↺ RESTART RUN';
     restartArm = 0;
   }

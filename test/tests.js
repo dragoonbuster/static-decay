@@ -450,6 +450,28 @@ T(convoy !== null && state === 'combat' && BASE.x === 720, 'convoy starts hot wi
   while (g-- > 0 && state === 'combat') stepSim();
   T(kills + enemies.length > 0, 'continuous spawner produced hostiles (' + (kills + enemies.length) + ')');
 }
+/* convoy: open-ended upgrades */
+{
+  cash = 99999;
+  const si2 = nearestFreeSlot(800, 355, 'vulcan');
+  placeTower('vulcan', CV_SLOTS[si2].x, 360);
+  const tv = towers[towers.length - 1];
+  for (let i = 0; i < 5; i++) upgradeTower(tv);
+  T(tv.level === 6 && isFinite(tv.dmg) && tv.range > TT.vulcan.range * 1.4, 'convoy towers climb past MK-3 (MK-' + tv.level + ')');
+  T(upCost(tv) > upCost({ k: 'vulcan', level: 2 }), 'upgrade costs escalate with mark');
+  T(upCost({ k: 'vulcan', level: 1 }) === 60 && upCost({ k: 'vulcan', level: 2 }) === 95, 'MK-2/MK-3 prices unchanged (codec-critical)');
+  const sj = nearestFreeSlot(850, 355, 'jammer');
+  placeTower('jammer', CV_SLOTS[sj].x, 360);
+  const tj = towers[towers.length - 1];
+  for (let i = 0; i < 7; i++) upgradeTower(tj);
+  T(tj.slow <= 0.85, 'jammer slow clamped at high marks (' + tj.slow.toFixed(2) + ')');
+  const so = nearestFreeSlot(900, 355, 'optic');
+  placeTower('optic', CV_SLOTS[so].x, 360);
+  const to2 = towers[towers.length - 1];
+  for (let i = 0; i < 5; i++) upgradeTower(to2);
+  T(isFinite(to2.dmgBuff) && to2.dmgBuff > 0.15, 'optic fire-control scales past MK-3 (' + to2.dmgBuff.toFixed(2) + ')');
+}
+towers = []; // strip the (now MK-6) defense so something can get through
 baseHP = 0.5; // force the ending
 {
   let g = 60 * 30;
@@ -458,6 +480,14 @@ baseHP = 0.5; // force the ending
 T(state === 'over' && convoy !== null, 'convoy ends via convoyOver');
 restartGame();
 T(convoy === null && BASE.x === 1128, 'restart clears convoy and restores the FOB');
+{
+  diffKey = 'ez'; restartGame();
+  placeTower('vulcan', 900, 300);
+  sel = towers[0]; cash = 99999;
+  for (let i = 0; i < 5; i++) doUpgrade();
+  T(towers[0].level === 3, 'skirmish upgrade cap stays MK-3');
+  sel = null; restartGame();
+}
 
 /* presence net */
 {

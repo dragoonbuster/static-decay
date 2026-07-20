@@ -436,9 +436,15 @@ T(theater === null, 'restart clears theater');
 /* convoy */
 startConvoy();
 T(convoy !== null && state === 'combat' && BASE.x === 720, 'convoy starts hot with the train base');
-T(nearestFreeSlot(605, 355) === 1, 'slot picker finds the nearest flatcar');
-placeTower('vulcan', CV_SLOTS[1], 360);
-T(slotFree(1) === false && slotFree(0) === true, 'slot occupancy tracked');
+{
+  const si = nearestFreeSlot(605, 355, 'vulcan');
+  T(si >= 0 && CV_SLOTS[si].x === 604, 'slot picker finds the nearest flatcar hardpoint');
+  T(nearestFreeSlot(1000, 360, 'gen') >= 0 && CV_SLOTS[nearestFreeSlot(1000, 360, 'gen')].gen === 1, 'generators route to locomotive mounts');
+  T(nearestFreeSlot(1000, 360, 'vulcan') === -1, 'weapons rejected at the locomotive');
+  T(nearestFreeSlot(605, 355, 'gen') === -1, 'generators rejected on flatcars');
+  placeTower('vulcan', CV_SLOTS[si].x, 360);
+  T(slotFree(si) === false && slotFree(0) === true, 'slot occupancy tracked');
+}
 {
   let g = 60 * 40; // 40s of sim — spawning starts at 12s
   while (g-- > 0 && state === 'combat') stepSim();

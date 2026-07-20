@@ -356,9 +356,10 @@
       <div class="sub">uses the THREAT LEVEL selected on the DEFEND tab</div>
       </div>
       <div id="tabConvoy" style="display:none">
-      <p style="margin-bottom:14px">The command train runs the eastern line. Six flatcar hardpoints, threat
-      from every bearing, and no pause between raids — the spawning only ramps.
-      Repairs are possible on the move, supply pays a slow trickle, and the run ends
+      <p style="margin-bottom:14px">The command train runs the eastern line. Eight weapon hardpoints on the
+      flatcars, generator mounts on the locomotive, and the PAYLOAD car in the middle
+      is the thing they are coming for — from every bearing, without pause, ramping
+      forever. Repairs happen on the move, supply pays a trickle, and the run ends
       one way. Score is distance.</p>
       <div class="ovrow" style="margin-bottom:10px"><button class="btn primary" id="btnConvoyStart" style="font-size:16px;padding:10px 26px">ROLL OUT</button></div>
       <div class="sub">uses the THREAT LEVEL selected on the DEFEND tab</div>
@@ -2062,6 +2063,23 @@ const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
   c.textAlign = 'right'; c.fillText('C-UAS NET ONLINE', W - 10, H - 10);
 })();
 
+const bgCv2 = document.createElement('canvas'); bgCv2.width = W; bgCv2.height = H;
+(function paintBgConvoy() { // convoy backdrop: open country, no threat-axis dressing
+  const c = bgCv2.getContext('2d');
+  c.fillStyle = '#060a08'; c.fillRect(0, 0, W, H);
+  for (let i = 0; i < 300; i++) {
+    c.fillStyle = 'rgba(125,255,171,' + rand(0.01, 0.05) + ')';
+    c.fillRect(rand(0, W), rand(0, H), rand(1, 3), rand(1, 3));
+  }
+  c.strokeStyle = 'rgba(95,115,85,0.12)'; c.lineWidth = 1;
+  for (let i = 0; i < 46; i++) { // scattered brush
+    c.beginPath(); c.arc(rand(0, W), rand(0, H), rand(4, 11), 0, TAU); c.stroke();
+  }
+  c.strokeStyle = 'rgba(125,255,171,0.04)';
+  for (let x = 0; x <= W; x += 40) { c.beginPath(); c.moveTo(x + 0.5, 0); c.lineTo(x + 0.5, H); c.stroke(); }
+  for (let y = 0; y <= H; y += 40) { c.beginPath(); c.moveTo(0, y + 0.5); c.lineTo(W, y + 0.5); c.stroke(); }
+})();
+
 function hexPath(c, x, y, r) {
   c.beginPath();
   for (let i = 0; i < 6; i++) {
@@ -2520,9 +2538,9 @@ function render() {
   ctx.save();
   if (shake > 0 && settings.shake) ctx.translate(rand(-1, 1) * shake * 6, rand(-1, 1) * shake * 6);
   if (convoy) {
-    const sc = (time * 140) % W;
-    ctx.drawImage(bg, -sc, 0);
-    ctx.drawImage(bg, W - sc, 0);
+    const sc = (time * 260) % W;
+    ctx.drawImage(bgCv2, -sc, 0);
+    ctx.drawImage(bgCv2, W - sc, 0);
   } else ctx.drawImage(bg, 0, 0);
   // ridges (terrain varies per run — drawn over the static background)
   for (const rg of TER) {
@@ -3706,9 +3724,9 @@ cv.addEventListener('pointerdown', ev => {
   if (movingT) {
     if ((state !== 'build' && !convoy) || !towers.includes(movingT)) { movingT = null; return; }
     if (convoy) {
-      const si = nearestFreeSlot(p0.x, p0.y);
+      const si = nearestFreeSlot(p0.x, p0.y, movingT.k);
       if (si >= 0 && cash >= moveCost(movingT)) {
-        moveTower(movingT, CV_SLOTS[si], 360);
+        moveTower(movingT, CV_SLOTS[si].x, 360);
         movingT = null;
         refreshDetail();
         sfx.click();
@@ -3726,16 +3744,20 @@ cv.addEventListener('pointerdown', ev => {
   }
   if (placing) {
     const d = TT[placing];
-    if (convoy) { // hardpoints only
-      const si = nearestFreeSlot(p0.x, p0.y);
+    if (convoy) { // hardpoints only, kind-matched
+      const si = nearestFreeSlot(p0.x, p0.y, placing);
       if (si >= 0 && cash >= d.cost && (d.draw === 0 || powerUsed() + d.draw <= powerCap())) {
-        placeTower(placing, CV_SLOTS[si], 360);
+        placeTower(placing, CV_SLOTS[si].x, 360);
         sfx.click();
         if (!ev.shiftKey) {
           placing = null;
           document.querySelectorAll('.card').forEach(c => c.classList.remove('sel'));
         }
-      } else sfx.deny();
+      } else {
+        if (si < 0 && nearestFreeSlot(p0.x, p0.y) >= 0)
+          addText(p0.x, p0.y - 20, placing === 'gen' ? 'GENERATORS MOUNT ON THE LOCOMOTIVE' : 'WEAPONS MOUNT ON FLATCARS', '#ff9f43');
+        sfx.deny();
+      }
       return;
     }
     const hasPwr = d.draw === 0 || powerUsed() + d.draw <= powerCap();
@@ -3817,6 +3839,8 @@ function togglePause() {
   el('ovPause').classList.toggle('hide', !paused);
   if (paused) {
     el('pauseSub').textContent = gameMode === 'raid' ? (state === 'rdesign' ? 'RAID PLANNING' : 'RAID IN PROGRESS')
+      : convoy ? 'ESCORT UNDER WAY — restart rolls a new run'
+      : theater ? 'FRONT COMMAND — rotation ' + theater.rotation
       : state === 'combat'
         ? 'WAVE ' + wave + ' IN PROGRESS — checkpoint = as launched'
         : 'BUILD PHASE — checkpoint = current state';
@@ -3919,6 +3943,8 @@ el('btnPauseRestart').addEventListener('click', () => {
   if (Date.now() < restartArm) {
     paused = false; el('ovPause').classList.add('hide'); el('btnPause').textContent = '❚❚';
     if (gameMode === 'raid') { if (state === 'combat') fastForwardRaid(); } // losses stand — no strike scumming
+    else if (convoy) startConvoy();
+    else if (theater) startTheater();
     else restartGame();
     sfx.horn();
   } else {
@@ -4798,19 +4824,28 @@ function theaterOver(win) {
 let convoy = null;
 const BASE0 = { x: 1128, y: 360, r: 54, sense: 260 };
 function resetBase() { BASE.x = BASE0.x; BASE.y = BASE0.y; BASE.r = BASE0.r; BASE.sense = BASE0.sense; }
-const CV_SLOTS = [520, 600, 680, 760, 840, 920]; // flatcar hardpoints, y = 360
-function slotFree(i) { return !towers.some(t => Math.abs(t.x - CV_SLOTS[i]) < 2 && Math.abs(t.y - 360) < 2); }
-function nearestFreeSlot(x, y) {
+/* Consist, front (east) to rear: locomotive with two GENERATOR-ONLY
+   mounts, two flatcars, the PAYLOAD car (the hitbox), two more flatcars.
+   Every flatcar carries two weapon hardpoints. */
+const CV_SLOTS = [
+  { x: 508 }, { x: 548 }, { x: 604 }, { x: 644 },           // rear flatcars
+  { x: 796 }, { x: 836 }, { x: 892 }, { x: 932 },           // forward flatcars
+  { x: 992, gen: 1 }, { x: 1032, gen: 1 },                  // locomotive mounts
+];
+function slotFree(i) { return !towers.some(t => Math.abs(t.x - CV_SLOTS[i].x) < 2 && Math.abs(t.y - 360) < 2); }
+function slotOK(i, k) { return CV_SLOTS[i].gen ? k === 'gen' : k !== 'gen'; }
+function nearestFreeSlot(x, y, k) {
   let best = -1, bd = 46;
-  CV_SLOTS.forEach((sx, i) => {
-    const d = Math.hypot(x - sx, y - 360);
-    if (d < bd && slotFree(i)) { bd = d; best = i; }
+  CV_SLOTS.forEach((s, i) => {
+    if (!slotFree(i) || (k && !slotOK(i, k))) return;
+    const d = Math.hypot(x - s.x, y - 360);
+    if (d < bd) { bd = d; best = i; }
   });
   return best;
 }
 function startConvoy() {
   restartGame();
-  convoy = { spawnT: 12, frac: 0, envT: 90, boss: 240 };
+  convoy = { spawnT: 15, frac: 0, envT: 90, boss: 240 };
   BASE.x = 720; BASE.y = 360; BASE.r = 40;
   setTerrain(0);
   waveRec = null;
@@ -4818,14 +4853,14 @@ function startConvoy() {
   el('btnWave').style.display = 'none';
   el('btnAuto').style.display = 'none';
   el('ovMenu').classList.add('hide');
-  el('nextwave').innerHTML = '<b>ESCORT DUTY</b> — the line goes hot in 12s. Mount systems on the flatcars; threat comes from every bearing and never stops.';
-  el('tipbar').innerHTML = 'CONVOY // click a card, then a flatcar slot · M moves between slots · R repairs on the move';
+  el('nextwave').innerHTML = '<b>ESCORT DUTY</b> — the line goes hot in 15s. Weapons mount on flatcars, generators on the locomotive; guard the <b>PAYLOAD</b> car. Threat comes from every bearing and never stops.';
+  el('tipbar').innerHTML = 'CONVOY // click a card, then a hardpoint · gens go on the locomotive · M moves mounts · R repairs on the move';
   radioMsg('RAILHEAD: CONVOY ROLLING — ALL SYSTEMS MOUNT UP');
   rollNextEnv();
   sfx.horn();
 }
 function convoyUpdate(dt) { // driven from stepSim during convoy combat
-  convoy.frac += dt * 3; // supply trickle $3/s keeps the build alive
+  convoy.frac += dt * 4; // supply trickle $4/s — ten hardpoints want feeding
   if (convoy.frac >= 1) { const add = Math.floor(convoy.frac); cash += add; earned += add; convoy.frac -= add; }
   convoy.envT -= dt;
   if (convoy.envT <= 0) { convoy.envT = 90; rollNextEnv(); }
@@ -4877,33 +4912,64 @@ function convoyOver() {
   el('ovDone').classList.remove('hide');
   sfx.boom(2);
 }
-function drawTrain() {
+function drawTrain() { // proper top-down: rails, sleepers, couplers — no side-view wheels
   const y = 360;
-  ctx.strokeStyle = '#2a3a2e'; ctx.lineWidth = 6;
-  ctx.beginPath(); ctx.moveTo(0, y + 26); ctx.lineTo(W, y + 26); ctx.stroke();
-  ctx.strokeStyle = 'rgba(18,26,20,0.9)'; ctx.lineWidth = 2;
-  for (let x = ((-time * 140) % 40 + 40) % 40; x < W; x += 40) {
-    ctx.beginPath(); ctx.moveTo(x, y + 20); ctx.lineTo(x - 8, y + 32); ctx.stroke();
+  ctx.fillStyle = 'rgba(30,40,32,0.5)'; // roadbed
+  ctx.fillRect(0, y - 14, W, 28);
+  ctx.strokeStyle = 'rgba(58,52,38,0.85)'; ctx.lineWidth = 4; // sleepers stream past
+  for (let x = -((time * 260) % 26); x < W; x += 26) {
+    ctx.beginPath(); ctx.moveTo(x, y - 12); ctx.lineTo(x, y + 12); ctx.stroke();
   }
-  for (const sx of CV_SLOTS) { // flatcars
+  ctx.strokeStyle = '#3d4a40'; ctx.lineWidth = 2.5; // rails
+  ctx.beginPath(); ctx.moveTo(0, y - 8); ctx.lineTo(W, y - 8); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, y + 8); ctx.lineTo(W, y + 8); ctx.stroke();
+  ctx.strokeStyle = '#2c4033'; ctx.lineWidth = 5; // coupler spine
+  ctx.beginPath(); ctx.moveTo(486, y); ctx.lineTo(1060, y); ctx.stroke();
+  for (const cx of [528, 624, 816, 912]) { // flatcars, two hardpoints each
     ctx.fillStyle = '#101a15'; ctx.strokeStyle = '#2c4033'; ctx.lineWidth = 1.5;
-    ctx.fillRect(sx - 34, y - 14, 68, 28); ctx.strokeRect(sx - 34, y - 14, 68, 28);
-    ctx.fillStyle = '#0a100d';
-    ctx.beginPath(); ctx.arc(sx - 20, y + 18, 6, 0, TAU); ctx.arc(sx + 20, y + 18, 6, 0, TAU); ctx.fill();
+    ctx.fillRect(cx - 42, y - 17, 84, 34); ctx.strokeRect(cx - 42, y - 17, 84, 34);
+    ctx.strokeStyle = 'rgba(44,64,51,0.7)'; ctx.lineWidth = 1;
+    ctx.strokeRect(cx - 36, y - 12, 72, 24);
+    ctx.beginPath(); ctx.moveTo(cx, y - 12); ctx.lineTo(cx, y + 12); ctx.stroke();
   }
-  ctx.fillStyle = '#16241c'; ctx.strokeStyle = '#3f8f5f'; ctx.lineWidth = 2; // locomotive
-  ctx.fillRect(960, y - 22, 96, 44); ctx.strokeRect(960, y - 22, 96, 44);
-  ctx.fillStyle = '#3f8f5f'; ctx.font = 'bold 10px IBM Plex Mono'; ctx.textAlign = 'center';
-  ctx.fillText('AEGIS', 1008, y + 3);
-  if (placing || movingT) { // free hardpoints
-    CV_SLOTS.forEach((sx, i) => {
+  // PAYLOAD car — the hitbox, and it should read like one
+  ctx.fillStyle = '#1a140a'; ctx.strokeStyle = '#ffb454'; ctx.lineWidth = 2;
+  ctx.fillRect(720 - 44, y - 18, 88, 36); ctx.strokeRect(720 - 44, y - 18, 88, 36);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(720 - 40, y - 14, 80, 28); ctx.clip();
+  ctx.strokeStyle = 'rgba(255,180,84,0.4)'; ctx.lineWidth = 5;
+  for (let x = 720 - 56; x < 720 + 56; x += 16) {
+    ctx.beginPath(); ctx.moveTo(x, y + 18); ctx.lineTo(x + 14, y - 18); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.fillStyle = '#ffb454'; ctx.font = 'bold 9px IBM Plex Mono'; ctx.textAlign = 'center';
+  ctx.fillText('PAYLOAD', 720, y - 26);
+  ctx.setLineDash([4, 5]); ctx.strokeStyle = 'rgba(255,180,84,0.4)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(BASE.x, BASE.y, BASE.r, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+  // locomotive — nose east, generator mounts on the roof
+  ctx.fillStyle = '#16241c'; ctx.strokeStyle = '#3f8f5f'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(960, y - 18); ctx.lineTo(1046, y - 18); ctx.lineTo(1066, y);
+  ctx.lineTo(1046, y + 18); ctx.lineTo(960, y + 18); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = 'rgba(63,143,95,0.5)'; ctx.lineWidth = 1;
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath(); ctx.moveTo(966 + i * 10, y - 12); ctx.lineTo(966 + i * 10, y + 12); ctx.stroke();
+  }
+  ctx.fillStyle = '#3f8f5f'; ctx.font = 'bold 9px IBM Plex Mono';
+  ctx.fillText('AEGIS', 1006, y + 30);
+  const dmgF = 1 - baseHP / baseMax;
+  if (dmgF > 0.02) { ctx.fillStyle = 'rgba(255,60,40,' + (dmgF * 0.28).toFixed(3) + ')'; ctx.fillRect(480, y - 20, 590, 40); }
+  if (placing || movingT) { // hardpoint markers: cyan = weapons, amber = generator mounts, grey = wrong kind
+    const k = placing || (movingT && movingT.k);
+    CV_SLOTS.forEach((s, i) => {
       if (!slotFree(i)) return;
-      ctx.strokeStyle = 'rgba(95,216,255,0.7)'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
-      ctx.beginPath(); ctx.arc(sx, y, 17, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+      const okKind = !k || slotOK(i, k);
+      ctx.strokeStyle = !okKind ? 'rgba(130,130,130,0.25)' : s.gen ? 'rgba(255,180,84,0.85)' : 'rgba(95,216,255,0.85)';
+      ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.arc(s.x, y, 15, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
     });
   }
-  const dmgF = 1 - baseHP / baseMax;
-  if (dmgF > 0.02) { ctx.fillStyle = 'rgba(255,60,40,' + (dmgF * 0.25).toFixed(3) + ')'; ctx.fillRect(480, y - 24, 580, 52); }
 }
 
 /* ================= raid clip capture (animated GIF, zero deps) =================
